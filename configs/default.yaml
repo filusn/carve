@@ -1,0 +1,81 @@
+# CARVE master config. Everything is config-driven; scripts read this. Values in
+# [brackets]/TODO must be set during Phase 0 and reflected in PREREGISTRATION.md.
+
+seed: 0
+seeds: [0, 1, 2]          # headline numbers averaged over these
+device: auto              # auto -> cuda > mps > cpu
+
+paths:
+  data_root: data/                       # git-ignored
+  weights_root: weights/                 # git-ignored
+  splits_dir: data/splits/
+  runs_dir: experiments/runs/            # git-ignored; one dir per run
+
+dataset:
+  # Core artifact-labelled pool = Bissoto-labelled ISIC2018+Atlas (clean-canvas filter +
+  # real slice from one source). HAM10000 is the reservoir canvas. FINAL primary canvas is
+  # set after the Phase-0 clean-pool count (docs/DATASETS.md) — `name` may switch to ham10000.
+  name: isic2018_atlas_bissoto           # or ham10000 (reservoir) pending clean-pool count
+  artifact_labels: bissoto               # repo alceubissoto/debiasing-skin (7 cats; no license)
+  task: melanoma_vs_nevus                # binary to start (clean causal signal)
+  image_size: 224
+  splits:                                # fractions; must be disjoint
+    probe_train: 0.40
+    sae_train: 0.25
+    select: 0.10
+    eval: 0.15
+    test: 0.10
+
+model:
+  # D1 RESOLVED (2026-06-30): primary = MONET (public weights; DermFM-Zero weights are
+  # private/on-request so unusable). Confirm HookedViT activation access in Phase 0.
+  primary: monet           # CLIP ViT-L/14, ~105k derm image-text pairs (Kim et al. Nat.Med.2024)
+  generality: clip-vit-b16 # ViT-Prisma ships pretrained SAEs for this
+  freeze_encoder: true
+  decision_signal: logit_margin   # z_pos - z_neg
+  # Two bias arms (see docs/DATASETS.md): zero_shot uses MONET text prompts with NO trained
+  # head (purest causal GT); induced trains the probe below on a rho-biased set.
+  bias_arms: [zero_shot, induced]
+  zero_shot_prompts:
+    pos: "a dermoscopic image of melanoma"
+    neg: "a dermoscopic image of a benign nevus"
+  layer_rule: max_artifact_decodability_on_select   # pre-committed; full sweep still logged
+  layer_sweep: [4, 6, 8, 10]      # report all; pick by rule
+
+artifacts:
+  types: [ruler, marker_ink, dark_corner]   # text_overlay if time
+  opacity: [0.4, 0.7, 1.0]
+  rho: [0.5, 0.7, 0.9, 1.0]                  # spurious-correlation strength
+  real_overlay: true                          # Phase-7 real-artifact slice (Bissoto)
+  store_mask: true
+
+sae:
+  source: train            # train (on medical FM) | pretrained (Prisma, for generality)
+  kind: topk
+  width: TODO              # e.g. 8x-32x activation dim
+  k: TODO                  # TopK sparsity
+  feature_set_size_m: 1    # allow >1 if feature is polysemantic
+  selection:
+    oracle: top_auroc_on_select
+    discovered: top_activation_variance_unsupervised
+
+interventions:
+  ops: [ablate, steer]
+  steer_coeffs: [-1.0, -2.0, -4.0]   # for the steering-response frontier
+  recovery_eps: TODO                  # skip |e_in| < eps
+
+baselines:
+  # dermfmzero_suppress = top-k SAE-neuron zeroing per artifact (reimplemented from
+  # arXiv 2602.10624 description; see docs/NOVELTY.md). Benchmarking it on our controlled
+  # ground truth is both a fair comparison and our differentiation from that paper.
+  enabled: [raw_neuron, cav_reveal2revise, cdep, dermfmzero_suppress, random_ctrl, input_oracle]
+  dermfmzero_suppress:
+    top_k: 5               # their "top five neurons most activated by each artifact type"
+
+eval:
+  bootstrap_resamples: 1000
+  ci: 0.95
+
+output:
+  save_per_image: true     # raw per-image outputs -> parquet in run dir
+  save_metrics_json: true
