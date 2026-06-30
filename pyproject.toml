@@ -1,0 +1,28 @@
+[project]
+name = "carve"
+version = "0.0.1"
+description = "CARVE — Causal ARtifact Validation of Encodings: a benchmark for causal faithfulness of SAE interpretability in medical foundation models."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Filip Noworolnik" }]
+license = { text = "MIT" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/carve"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B"]
+ignore = ["E501"]  # long lines tolerated in docstrings/configs
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

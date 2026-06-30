@@ -1,0 +1,39 @@
+# CARVE dependencies.
+# NOTE: install a torch build matching your CUDA before the rest, e.g.:
+#   uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# Then: uv pip install -r requirements.txt
+
+# --- core DL ---
+torch>=2.2
+torchvision>=0.17
+timm>=1.0.0
+open_clip_torch>=2.24
+huggingface_hub>=0.23
+datasets>=2.19
+
+# --- mechanistic interpretability / SAE ---
+vit-prisma>=0.1            # HookedViT, activation patching, pretrained CLIP/DINO SAEs
+# sae-lens>=3.0            # alternative SAE tooling; enable if preferred
+
+# --- baselines (CAV / Reveal2Revise / CRP) ---
+zennit>=0.5
+zennit-crp>=0.6
+
+# --- scientific stack ---
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+pandas>=2.2
+pyarrow>=15.0             # parquet run outputs
+
+# --- config / logging / viz ---
+omegaconf>=2.3
+pyyaml>=6.0
+tqdm>=4.66
+rich>=13.7
+matplotlib>=3.8
+seaborn>=0.13
+
+# --- dev ---
+pytest>=8.0
+ruff>=0.4

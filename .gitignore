@@ -1,0 +1,30 @@
+# data & heavy artifacts — never commit (see INTEGRITY.md)
+data/
+weights/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# experiment outputs (keep experiments/ dir + README + curated tables only)
+experiments/runs/
+experiments/**/runs/
+*.parquet
+wandb/
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
