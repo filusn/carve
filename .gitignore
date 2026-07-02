@@ -28,3 +28,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# local-only convenience scripts
+docker-run.sh

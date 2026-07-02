@@ -16,7 +16,7 @@ vit-prisma>=0.1            # HookedViT, activation patching, pretrained CLIP/DIN
 # sae-lens>=3.0            # alternative SAE tooling; enable if preferred
 
 # --- baselines (CAV / Reveal2Revise / CRP) ---
-zennit>=0.5
+zennit<=0.4.6           # pinned: zennit-crp requires zennit<=0.4.6 (all crp releases, incl. 0.6.0)
 zennit-crp>=0.6
 
 # --- scientific stack ---

@@ -16,7 +16,7 @@ import importlib
 
 def _check_imports():
     status = {}
-    for mod in ["torch", "vit_prisma", "open_clip", "zennit_crp", "sklearn", "omegaconf"]:
+    for mod in ["torch", "vit_prisma", "open_clip", "crp", "sklearn", "omegaconf"]:
         try:
             importlib.import_module(mod)
             status[mod] = "ok"
