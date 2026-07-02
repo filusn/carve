@@ -112,15 +112,23 @@ def main() -> None:
 
     report = {"layer": layer, "alpha": ALPHA, "rho": RHO, "artifacts": {}}
 
+    # decode each split's CLEAN images ONCE; artifacts are injected per-kind from these
+    zs_idx = ev_idx[: N["zeroshot"]]
+    bg_idx = ev_idx[: N["eval"]]
+    zs_clean = _load_images(ds, zs_idx, size)
+    tr_imgs = _load_images(ds, tr_idx, size)
+    tr_labels = ds.labels[tr_idx]
+    bg_imgs = _load_images(ds, bg_idx, size)
+    bg_labels = ds.labels[bg_idx]
+    f_zs_clean = f_decision(None, enc, zs_clean)        # zero-shot clean margins (kind-agnostic)
+
     for kind in ARTIFACT_KINDS:
         entry = {}
 
         # ---- ZERO-SHOT arm: input-level effect e_in on held-out eval images -------------
-        zs_idx = ev_idx[: N["zeroshot"]]
-        clean = _load_images(ds, zs_idx, size)
         arted = [inject(im, kind, ALPHA, np.random.default_rng(int(i)))[0]
-                 for im, i in zip(clean, zs_idx)]
-        f_clean = f_decision(None, enc, clean)          # zero-shot margins
+                 for im, i in zip(zs_clean, zs_idx)]
+        f_clean = f_zs_clean
         f_art = f_decision(None, enc, arted)
         e_in = input_effect(f_art, f_clean).numpy()
         lo, hi = bootstrap_ci(e_in, n=cfg.eval.bootstrap_resamples, ci=cfg.eval.ci, rng=seed)
@@ -135,8 +143,6 @@ def main() -> None:
         }
 
         # ---- INDUCED arm: train ρ=1.0-biased probe, measure bias gap --------------------
-        tr_imgs = _load_images(ds, tr_idx, size)
-        tr_labels = ds.labels[tr_idx]
         # ρ=1.0: artifact on positives only, never on negatives
         biased_train = []
         for j, (im, lab) in enumerate(zip(tr_imgs, tr_labels)):
@@ -145,9 +151,6 @@ def main() -> None:
             biased_train.append({"image": im, "label": int(lab)})
         probe = train_probe(enc, layer, biased_train)
 
-        bg_idx = ev_idx[: N["eval"]]
-        bg_imgs = _load_images(ds, bg_idx, size)
-        bg_labels = ds.labels[bg_idx]
         aligned, conflicting = _bias_gap_eval(bg_imgs, bg_labels, kind, ALPHA, seed + 1)
         acc_aligned = float(((f_decision(probe, enc, aligned, layer).numpy() > 0).astype(int)
                              == bg_labels).mean())

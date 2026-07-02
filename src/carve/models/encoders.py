@@ -98,6 +98,35 @@ class MonetEncoder:
             h.remove()
         return torch.cat(outs, dim=0)
 
+    @torch.no_grad()
+    def activations_multi(self, images, layers, pool: str = "cls", batch_size: int = 32):
+        """Like ``activations`` but captures MANY layers in a SINGLE forward pass per batch.
+        Returns {layer: tensor}. Used by pick_layer to avoid one full forward per layer."""
+        layers = list(layers)
+        cap: dict = {}
+        out: dict = {ell: [] for ell in layers}
+
+        def mk(ell):
+            def hook(_m, _i, o):
+                cap[ell] = (o[0] if isinstance(o, tuple) else o).detach()
+            return hook
+
+        handles = [self.layers[ell].register_forward_hook(mk(ell)) for ell in layers]
+        try:
+            for batch in self._batches(images, batch_size):
+                self.model.vision_model(self._pixels(batch))
+                for ell in layers:
+                    a = cap[ell]
+                    if pool == "cls":
+                        a = a[:, 0, :]
+                    elif pool == "mean":
+                        a = a.mean(dim=1)
+                    out[ell].append(a.float().cpu())
+        finally:
+            for h in handles:
+                h.remove()
+        return {ell: torch.cat(out[ell], dim=0) for ell in layers}
+
     # -- zero-shot decision signal --------------------------------------------------------
     @torch.no_grad()
     def zero_shot_margin(self, images, batch_size: int = 32) -> torch.Tensor:
@@ -150,12 +179,13 @@ def pick_layer(encoder: MonetEncoder, select_items, cfg=None, layers=None, targe
     images = [it["image"] for it in select_items]
     y = np.array([int(it[target_key]) for it in select_items])
 
+    feats = encoder.activations_multi(images, layers, pool="cls")  # one forward per batch
     sweep = {}
     for ell in layers:
-        X = encoder.activations(images, ell, pool="cls").numpy()
         if len(np.unique(y)) < 2:
             sweep[int(ell)] = float("nan")
             continue
+        X = feats[ell].numpy()
         clf = LogisticRegression(max_iter=1000, class_weight="balanced")
         sweep[int(ell)] = float(cross_val_score(clf, X, y, cv=3, scoring="roc_auc").mean())
     best = max(sweep, key=lambda k: (sweep[k] if sweep[k] == sweep[k] else -1))

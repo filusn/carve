@@ -59,35 +59,51 @@ class ISICBinary:
 
 
 def _resolve(cfg, root, image_dir, groundtruth_csv):
-    """Fill dir/csv from config or sensible ISIC-2018 Task3 defaults under data_root."""
+    """Resolve dir/csv from explicit args → cfg.dataset.* → ISIC-2018 Task3 defaults.
+
+    Config-driven (CLAUDE.md): reads `dataset.root`, `dataset.image_subdir`, and
+    `dataset.groundtruth_csv` (the latter two relative to `root` unless absolute).
+    """
+    ds = cfg.dataset if cfg is not None else None
     if root is None:
-        data_root = (cfg.paths.data_root if cfg is not None else "data") or "data"
-        root = os.path.join(str(data_root), "isic2018")
+        root = (ds.get("root") if ds is not None else None)
+        if root is None:
+            data_root = (cfg.paths.data_root if cfg is not None else "data") or "data"
+            root = os.path.join(str(data_root), "isic2018")
+    root = str(root)
     if image_dir is None:
-        image_dir = os.path.join(root, "ISIC2018_Task3_Training_Input")
+        subdir = (ds.get("image_subdir") if ds is not None else None) \
+            or "ISIC2018_Task3_Training_Input"
+        image_dir = subdir if os.path.isabs(subdir) else os.path.join(root, subdir)
     if groundtruth_csv is None:
-        groundtruth_csv = os.path.join(
-            root, "ISIC2018_Task3_Training_GroundTruth",
-            "ISIC2018_Task3_Training_GroundTruth.csv",
+        gt = (ds.get("groundtruth_csv") if ds is not None else None) or os.path.join(
+            "ISIC2018_Task3_Training_GroundTruth", "ISIC2018_Task3_Training_GroundTruth.csv"
         )
+        groundtruth_csv = gt if os.path.isabs(gt) else os.path.join(root, gt)
     return root, image_dir, groundtruth_csv
 
 
 def load_isic_binary(
     cfg=None,
-    pos_class: str = "MEL",
-    neg_class: str = "NV",
+    pos_class: str | None = None,
+    neg_class: str | None = None,
     root: str | None = None,
     image_dir: str | None = None,
     groundtruth_csv: str | None = None,
-    image_size: int | None = 224,
+    image_size: int | None = None,
 ) -> ISICBinary:
     """Load the ISIC-2018 Task3 binary subset (default: melanoma MEL=1 vs nevus NV=0).
 
-    Keeps only rows whose one-hot label is exactly `pos_class` or `neg_class`, and only
-    images that exist on disk. Deterministic ordering (sorted by isic id) so splits built
-    on top are reproducible.
+    Config-driven: `pos_class`/`neg_class`/`image_size` and the paths fall back to
+    `cfg.dataset.*` (then to sensible defaults) when not passed explicitly. Keeps only rows
+    whose one-hot label is exactly `pos_class` or `neg_class`, and only images that exist on
+    disk. Deterministic ordering (sorted by isic id) so splits built on top are reproducible.
     """
+    ds = cfg.dataset if cfg is not None else None
+    pos_class = pos_class or (ds.get("pos_class") if ds is not None else None) or "MEL"
+    neg_class = neg_class or (ds.get("neg_class") if ds is not None else None) or "NV"
+    if image_size is None:
+        image_size = int(ds.get("image_size", 224)) if ds is not None else 224
     _, image_dir, groundtruth_csv = _resolve(cfg, root, image_dir, groundtruth_csv)
     if not os.path.exists(groundtruth_csv):
         raise FileNotFoundError(f"ISIC ground-truth CSV not found: {groundtruth_csv}")
