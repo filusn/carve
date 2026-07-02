@@ -70,7 +70,7 @@ def run_cell(
 
     if run_dir is not None:
         import pandas as pd
-        tag = f"{meta.get('artifact')}_{meta.get('selection')}_{meta.get('method')}"
+        tag = f"s{seed}_{meta.get('artifact')}_{meta.get('selection')}_{meta.get('method')}"
         pd.DataFrame({
             "f_art": f_art.numpy(), "f_removed": f_removed.numpy(),
             "f_feat_art": f_feat_art.numpy(), "f_feat_clean": f_feat_clean.numpy(),
