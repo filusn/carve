@@ -1,7 +1,9 @@
 # data & heavy artifacts — never commit (see INTEGRITY.md)
-data/
-weights/
-checkpoints/
+# NB: anchored with a leading slash so these only match the repo-root dirs and do NOT
+# swallow the src/carve/data package.
+/data/
+/weights/
+/checkpoints/
 *.pt
 *.pth
 *.ckpt
