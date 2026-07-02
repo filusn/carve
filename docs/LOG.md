@@ -81,4 +81,15 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
     image diameter). Effect ~halved (zero-shot e_in +0.96→**+0.49**; bias_gap 1.00→**0.945**)
     — smaller footprint ⇒ smaller causal effect, as expected. Still GO. Refreshed run
     `experiments/runs/20260702T223404Z_phase0_gate` (prior larger-marker run `…221857Z`).
+- `2026-07-03` — **Stage 4 SAE built + validated (quick run) — SAE gate half: DETECTION ✓.**
+  TopK SAE (`carve.sae`, raw layer-12 activation space so Stage-5 interventions act directly
+  on the residual stream). Quick run (400 sae_train imgs → 102,800 patch+CLS tokens, width
+  4096, k=32, 800 steps; run `…231421Z_train_sae`): **R²=0.990**, FVU 0.010, dead 9.6%.
+  Discovery on a ρ=0.9 ruler-biased `select` set: **oracle single feature #993 detects the
+  ruler at AUROC 0.997**. Unsupervised (activation-variance) top-5 misses it →
+  **precision@5 = 0.00** — naive unsupervised discovery does NOT surface the artifact feature
+  (reportable detection-vs-discovery dissociation; a contrast-based unsupervised method may
+  do better — try in the full run). Config `sae.width/k` set (16384/32) — freeze in
+  PREREGISTRATION. Remaining gate condition (CAUSAL RECOVERY: does ablating #993 reproduce
+  e_in?) = Stage 5. Still on track: detection strong, recovery TBD.
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`

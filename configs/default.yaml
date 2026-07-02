@@ -59,9 +59,15 @@ artifacts:
 sae:
   source: train            # train (on medical FM) | pretrained (Prisma, for generality)
   kind: topk
-  width: TODO              # e.g. 8x-32x activation dim
-  k: TODO                  # TopK sparsity
+  layer: 12                # MONET vision block ℓ the SAE is trained on (d=1024)
+  tokens: patch            # train on patch+CLS tokens (spatial artifacts live in patches)
+  width: 16384             # 16x expansion of d=1024 (provisional → freeze in PREREGISTRATION)
+  k: 32                    # TopK sparsity     (provisional → freeze in PREREGISTRATION)
   feature_set_size_m: 1    # allow >1 if feature is polysemantic
+  train:
+    steps: 3000
+    batch: 4096
+    lr: 0.001
   selection:
     oracle: top_auroc_on_select
     discovered: top_activation_variance_unsupervised
