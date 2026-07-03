@@ -162,4 +162,17 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
   `docker restart carve-dev` (non-destructive: deps in image, code/data bind-mounted). Restart
   also wiped the in-container git identity + `safe.directory` → **bake both into the image**
   (already flagged) so runs keep capturing `git_commit`.
+- `2026-07-03` — **CAV / Reveal2Revise baseline added → the dissociation holds for a learned
+  linear concept direction too.** `carve.baselines.cav` fits the artifact CAV on `select`
+  (class-weighted logistic separator of present/absent pooled layer-12 activations) and clamps
+  that direction to its clean baseline at inference (`a′ = a − (a·û − b)û`, ClArC-style), as
+  one more `act_fn` on the SAME cells. 3-seed grid (commit `9c95270`, run
+  `…151648Z_baselines_grid`): CAV **detection AUROC 1.000** but recovery R = ruler −0.03±0.01 /
+  marker_ink +0.01±0.03 / dark_corner **+0.17±0.02**; **selectivity 0.55–0.74**, off-target ~0.
+  ⇒ pre-registered **H3 holds**: even a full learned linear direction detects-but-doesn't
+  (selectively) control; the small dark-corner recovery fits (low-frequency global change =
+  most linearly encoded) but is far below the 1.0 ceiling. So **no linear activation-space
+  method — SAE feature, raw neuron, or CAV — achieves selective causal control.** Also
+  refactored the two grid runners onto shared `carve.eval.grid` scaffolding (behavior-
+  preserving; 40: 124→92 lines) + `tests/test_grid.py`. Remaining 2nd-pass baseline: CDEP.
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`

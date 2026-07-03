@@ -21,7 +21,8 @@ Every number below comes from a committed script + saved run dir (no fabricated 
 | 4 | TopK SAE: train + detection/discovery | ✅ |
 | 5 | interventions (ablate/steer) + eval harness | ✅ |
 | 6 | **core-4 baselines + aggregation + figures** | ✅ |
-| — | CAV / Reveal2Revise + CDEP (2nd baseline pass) | ⬜ deferred (task #12) |
+| 6b | **CAV / Reveal2Revise baseline** | ✅ |
+| — | CDEP (remaining 2nd-pass baseline) | ⬜ (task #12) |
 | — | SAE-health fix + freeze PREREGISTRATION | ⬜ gate before final (task #13) |
 | 7 | ρ×α sweep + real-artifact slice + paper figures | ⬜ |
 
@@ -67,16 +68,23 @@ width-16384 SAE, eval n=250, 3 seeds. All methods on the **same** cells/metrics/
 | **input-removal oracle** (ceiling) | — | — | **1.00 ± 0.00** | 1.00 | 0.00 |
 | **SAE oracle-ablate** (ours) | top-AUROC feature | 0.994–1.000 | **≈0** (−.03 / +.03 / +.01) | **0.98–0.998** | 0.00 |
 | **raw neuron** (budget-matched) | top-AUROC neuron | 0.973–0.995 | **≈0** (+.03 / +.00 / +.01) | 0.44–0.67 | ~0 |
+| **CAV** (Reveal2Revise / ClArC) | learned linear direction | 1.000 | **≈0 / +.17** (−.03 / +.01 / **+.17**) | 0.55–0.74 | ~0 |
 | **DermFM-Zero** top-5 (incumbent) | top-activation | — | **erratic** (+.07 / **−.76** / **−.48**) | 0.42–0.47 | **0.125** |
 | random raw (control) | random | — | ≈0 | ~0.45 | ~0 |
 
-*(three R values = ruler / marker_ink / dark_corner)*
+*(three R values = ruler / marker_ink / dark_corner; CAV std ≤0.03 across seeds)*
 
-**Headline:** detection is saturated for **both** SAE features and raw neurons, yet recovery
-sits at **zero** — the *detection ≠ control* dissociation, robust across seeds and artifacts.
+**Headline:** detection is saturated for SAE features, raw neurons, and the CAV (all
+≈1.0 AUROC), yet recovery sits at **≈0** — the *detection ≠ control* dissociation, robust
+across seeds, artifacts, and method families.
 - The SAE's only edge over a single raw neuron is **selectivity**, not control — this answers
   the killer objection "what does the SAE add over raw neurons?": near-perfect selectivity,
   but no more causal control (neither controls the artifact).
+- **CAV** (a full *learned* linear concept direction, not a single coordinate) also fails to
+  control: R≈0 on ruler/marker and only **+0.17 on dark_corner** (a low-frequency global
+  change that is more linearly encoded), still far below the 1.0 ceiling; selectivity 0.55–0.74
+  sits between raw-neuron and SAE. So no linear activation-space method — sparse feature,
+  raw neuron, or concept vector — achieves selective causal control.
 - The one method that *moves* the decision (DermFM-Zero suppression) does so
   **non-selectively** (sel ~0.45), at **12.5% clean-task cost**, and **in the wrong direction
   on 2/3 artifacts** — nowhere near the input-removal ceiling of 1.0. Its published one-way
@@ -148,32 +156,32 @@ stratified splits + class weighting.
 
 ---
 
-## 4. CAV (Concept Activation Vector) — NOT yet run
+## 4. CAV (Concept Activation Vector) — DONE
 
-**No CAV results exist** — it is the deferred second baseline pass (task #12). Per the
-project's no-fabrication rule, no mitigation number is reported here. What follows is the
-plan and an explicit *hypothesis*, not a measurement.
+**What CAV does / how it mitigates.** A CAV (Kim et al., TCAV; used for correction in
+Reveal2Revise / ClArC, Anders et al.) fits a class-weighted logistic classifier at layer ℓ
+separating **artifact-present vs artifact-absent** activations; the unit normal is the
+"artifact direction." Mitigation clamps the component along that direction back to its clean
+baseline at inference (`a′ = a − (a·û − b)·û`). In our harness it is one more `act_fn` on the
+same cells → it is the `cav` row of the Section-2 table.
+Code: `src/carve/baselines/cav.py`; run `experiments/runs/20260703T151648Z_baselines_grid`
+(commit `9c95270`).
 
-**What CAV does / how it's meant to mitigate.** A CAV (Kim et al., TCAV; used for correction
-in Reveal2Revise / ClArC, Anders et al.) fits a linear classifier at layer ℓ separating
-**artifact-present vs artifact-absent** activations; its normal is the "artifact direction."
-Mitigation edits activations at inference to **remove the component along that direction**
-(project onto its orthogonal complement). In our harness this is just another `act_fn` on the
-same cells → it lands directly in the Section-2 table.
-
-**Hypothesis (prereg H3 — untested).** A single raw neuron and the SAE feature both detect at
-~1.0 AUROC yet recover R≈0; CAV is likewise a **single linear direction** in the same
-activation space, so it is expected to also land near **R≈0 (detect-but-don't-control)**,
-plausibly with selectivity between the raw neuron (~0.5) and the SAE (~0.98). If CAV instead
-recovers substantially, that is itself a publishable twist. Either outcome is why it must be
-run before any number is stated.
+**Result (3-seed grid).** CAV detects the artifact at **1.000 AUROC** but recovers
+**≈0 on ruler (−.03±.01) and marker (+.01±.03)**, and only **+0.17±.02 on dark_corner**;
+selectivity **0.55–0.74**, off-target ~0. So the pre-registered hypothesis H3 holds: a full
+*learned* linear concept direction, like the SAE feature and the raw neuron, **detects but
+does not selectively control** the injected artifact. The small dark-corner recovery fits the
+pattern — a low-frequency global change is the most linearly encoded of the three — and is
+still far from the 1.0 input-removal ceiling.
 
 ---
 
 ## Immediate next steps
 
-1. **CAV + CDEP** (task #12) — `fit_cav` + projection-removal `act_fn`; one grid pass on the
-   identical cells → completes the head-to-head table.
+1. **CDEP** (task #12, remaining) — contextual-decomposition penalty using the injected masks
+   (Rieger et al., ICML 2020); the one heavier reimplementation left, then it joins the same
+   table. (CAV ✅ done.)
 2. **Pre-final gate** (task #13) — fix SAE dead-feature fraction (resample or commit to
    width-4096) + report cross-seed decoder stability; **freeze `PREREGISTRATION.md`**
    (thresholds, layer rule, SAE width/k, recovery ε, steer-coeff sign) — hard rule before the
@@ -181,5 +189,5 @@ run before any number is stated.
 3. **Phase 7** — full ρ×α sweep (currently fixed ρ=0.9/α=1.0) + real-artifact slice + paper
    figures.
 
-_Branches:_ Stage-6 work on `phase6-baselines` (commits `b97d368`, `e8e1981`).
+_Branches:_ Stage-6 work on `phase6-baselines` (commits `b97d368`, `e8e1981`, `9c95270`).
 Not pushed — awaiting PI, per repo git discipline.
