@@ -23,7 +23,7 @@ Every number below comes from a committed script + saved run dir (no fabricated 
 | 6 | **core-4 baselines + aggregation + figures** | ✅ |
 | 6b | **CAV / Reveal2Revise baseline** | ✅ |
 | — | CDEP (remaining 2nd-pass baseline) | ⬜ (task #12) |
-| — | SAE-health fix + freeze PREREGISTRATION | ⬜ gate before final (task #13) |
+| 4c | SAE-health fix (AuxK) + **PREREGISTRATION frozen** | ✅ (AuxK-on-MONET sweep unverified) |
 | 7 | ρ×α sweep + real-artifact slice + paper figures | ⬜ |
 
 ---
@@ -179,15 +179,14 @@ still far from the 1.0 input-removal ceiling.
 
 ## Immediate next steps
 
-1. **CDEP** (task #12, remaining) — contextual-decomposition penalty using the injected masks
-   (Rieger et al., ICML 2020); the one heavier reimplementation left, then it joins the same
-   table. (CAV ✅ done.)
-2. **Pre-final gate** (task #13) — fix SAE dead-feature fraction (resample or commit to
-   width-4096) + report cross-seed decoder stability; **freeze `PREREGISTRATION.md`**
-   (thresholds, layer rule, SAE width/k, recovery ε, steer-coeff sign) — hard rule before the
-   final grid.
-3. **Phase 7** — full ρ×α sweep (currently fixed ρ=0.9/α=1.0) + real-artifact slice + paper
-   figures.
+1. **Run the SAE-health sweep to completion** — `scripts/31_sae_health_sweep.py` was
+   interrupted (battery). Confirms dead-frac / R² / detection / decoder-stability for
+   {4096, 16384, 16384+AuxK} and whether the frozen width-selection rule promotes a wider dict.
+   Run with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` when the container has no network.
+2. **Phase-7 final grid** — ρ×α sweep (currently fixed ρ=0.9/α=1.0), all methods, using the
+   **frozen** SAE config (width 4096, AuxK). PREREGISTRATION is frozen, so this can run.
+3. **CDEP** (task #12) — the remaining baseline, if the deadline allows.
 
-_Branches:_ Stage-6 work on `phase6-baselines` (commits `b97d368`, `e8e1981`, `9c95270`).
+_Branches:_ Stage-6 + prereg on `phase6-baselines`
+(`b97d368`, `e8e1981`, `9c95270`, `0840de8`, `5d57d94`, + this docs commit).
 Not pushed — awaiting PI, per repo git discipline.

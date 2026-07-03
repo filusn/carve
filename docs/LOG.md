@@ -175,4 +175,20 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
   method — SAE feature, raw neuron, or CAV — achieves selective causal control.** Also
   refactored the two grid runners onto shared `carve.eval.grid` scaffolding (behavior-
   preserving; 40: 124→92 lines) + `tests/test_grid.py`. Remaining 2nd-pass baseline: CDEP.
+- `2026-07-03` — **PREREGISTRATION FROZEN (commit `5d57d94`, status ☑ FROZEN) + SAE-health
+  fix.** Froze all metric defs / thresholds / selection rules before the Phase-7 final grid:
+  f = logit margin, recovery ε=1e-3, R≥0.5 / sel≥0.8 / off-target≤2%, seeds [0,1,2], baselines
+  list, steer-coeff sign fixed. **SAE width — selection RULE:** widest dictionary with held-out
+  **dead-fraction ≤15% & R²≥0.98 at k=32**; on evidence at freeze **width 4096** meets it (dead
+  ≈9.6%, R² ≈0.99, ruler detection ≈1.0) → registered primary; `configs/default.yaml` updated
+  (width 16384→4096, `recovery_eps` 0.001). **SAE-health fix:** added **AuxK dead-feature
+  revival** to `train_sae` (Gao 2024; `train.aux_k`, default off so prior runs/tests unchanged),
+  reviving starved latents via the main residual; unit-tested on synthetic (residual regime).
+  **Caveat — NOT yet confirmed on MONET:** the width×AuxK health sweep
+  (`scripts/31_sae_health_sweep.py`) was interrupted (battery) before emitting numbers, so
+  whether AuxK brings width-16384 under the 15%-dead bar is **unverified**; the freeze does not
+  depend on it (4096 is healthy without AuxK). Re-run `scripts/31` to characterize + decide
+  whether to promote a wider dict under the frozen rule. **Ops:** `HF_HUB_OFFLINE=1
+  TRANSFORMERS_OFFLINE=1` needed when the container has no network (AutoProcessor otherwise
+  hits HF) — bake into the run env alongside git identity / `safe.directory`.
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`
