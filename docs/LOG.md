@@ -129,4 +129,37 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
   before the FINAL numbers, add dead-feature resampling or reduce width, and report cross-seed
   decoder stability. Next: Stage-6 baselines (CAV/CDEP/raw-neuron/input-oracle) on the same
   cells — the comparative claim.
+- `2026-07-03` — **Stage-6 core-4 baselines on identical ground truth → the dissociation
+  survives the comparison; the SAE adds no causal-control value over raw neurons.** New
+  keystone: `run_cell` generalized to one interface (activation-editor `act_fn` | SAE `op/S`
+  back-compat | input-removal `oracle=True`) so all methods share cells/metrics/eval split.
+  Full 3-seed × 3-artifact grid (width 16384, ρ=0.9, α=1.0, layer 12, eval n=250; run
+  `…134217Z_baselines_grid`). Causal recovery R (mean±std over seeds) & selectivity / off-target:
+  - **input-removal oracle (ceiling):** R=**1.00**, sel 1.00, off-target 0 — the effect IS
+    fully removable; every method below is read against this.
+  - **SAE oracle-ablate (ours):** detection **0.994–1.000**, R = ruler −0.03±0.13 / marker
+    +0.03±0.10 / dark +0.01±0.01 (**≈0**), **selectivity 0.98–0.998**, off-target 0 — a pure,
+    causally-inert detector.
+  - **Raw-neuron ablate (budget-matched):** detection **0.973–0.995** (raw neurons detect the
+    artifact just as well), R ≈0 (+0.03/+0.00/+0.01), selectivity 0.44–0.67. ⇒ **answers the
+    killer objection: the SAE dictionary buys near-perfect selectivity but no more causal
+    control than a single raw neuron — neither controls the artifact.**
+  - **DermFM-Zero top-5 suppression (incumbent):** the only mover, but **non-selective**
+    (sel 0.42–0.47), **12.5% off-target** clean-task damage, and **wrong-direction** on 2/3
+    artifacts (R = ruler +0.07±0.16 / marker −0.76±0.56 / dark −0.48±0.38) — nowhere near the
+    ceiling. Its published one-way AUROC gain hides this.
+  - **Random raw control:** R≈0 (sanity ✓).
+  ⇒ Robust benchmark claim: **on injected artifacts with a known causal effect, detection
+  (SAE & raw neuron ≈1.0 AUROC) does not imply control (R≈0); the incumbent suppression moves
+  the decision but non-selectively and often the wrong way.** Figures in `figures/phase6/`
+  (detection-vs-recovery, recovery bars, selectivity-vs-off-target, detection bars), all
+  regenerable via `scripts/60_figures.py`. Robustness: the SAME dissociation holds on a
+  **healthy width-4096 SAE (dead 9.6%)** in the `--quick` run → not an artifact of the 55%-dead
+  wide dictionary. Deferred (task #12): CAV/Reveal2Revise + CDEP second pass. Before FINAL
+  numbers (task #13): SAE-health fix + freeze PREREGISTRATION.
+- `2026-07-03` — **Ops:** `carve-dev` lost GPU after ~16h (NVML "Unknown Error", cuda
+  unavailable) — host driver/cgroup desync, not a host GPU fault (RTX 4080 healthy). Fixed by
+  `docker restart carve-dev` (non-destructive: deps in image, code/data bind-mounted). Restart
+  also wiped the in-container git identity + `safe.directory` → **bake both into the image**
+  (already flagged) so runs keep capturing `git_commit`.
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`
