@@ -1,20 +1,24 @@
 """Baselines — evaluated on IDENTICAL ground truth, metrics, cells, eval split.
 
-Implement (see EXECUTION_PLAN Phase 6, INTEGRITY.md §5). Each exposes an intervention with
-the same interface as carve.interventions so the harness treats all methods uniformly.
+Each method plugs into carve.eval.harness.run_cell through the same interface as
+carve.interventions, so all numbers stay comparable (INTEGRITY.md §5):
 
-raw_neuron.py
-    raw_neuron_direction(encoder, layer, select_loader) -> neurons   # most artifact-correlated
-    # ablate raw neuron(s); tests "what does the SAE add over raw neurons?"
-cav.py
-    fit_cav(encoder, layer, select_loader) -> direction             # Reveal2Revise / CRP-style
-    # suppress along the artifact CAV; use zennit-crp faithfully (authors' method, fair budget)
-cdep.py
-    cdep_train(...) -> probe                                        # contextual-decomposition
-    # penalty using injected masks (Rieger et al., ICML 2020)
-random_ctrl.py
-    random_feature(sae) -> S_rand                                   # must do ~nothing (sanity)
-input_oracle.py
-    oracle_effect(...) -> Tensor                                    # input removal = ceiling
+  * raw_neuron       — ablate the most artifact-correlated RAW block-ℓ neuron(s).
+                       Answers "what does the SAE add over raw neurons?".  → act_fn
+  * dermfmzero       — suppress the top-k SAE features most activated by the artifact
+                       (DermFM-Zero, arXiv 2602.10624). The incumbent we validate. → op="ablate", S
+  * random_ctrl      — random SAE feature / raw neuron; must do ≈nothing (sanity floor).
+  * input_oracle     — remove the artifact at the INPUT = achievable ceiling. → oracle=True
+
+CAV/Reveal2Revise and CDEP (heavier faithful reimplementations) are added in a second pass.
 """
-raise NotImplementedError("carve.baselines: implement raw_neuron/cav/cdep/random_ctrl/input_oracle")
+
+from .dermfmzero_suppress import dermfmzero_select  # noqa: F401
+from .input_oracle import ORACLE_META  # noqa: F401
+from .random_ctrl import random_raw_neurons, random_sae_features  # noqa: F401
+from .raw_neuron import (  # noqa: F401
+    raw_image_scores,
+    raw_neuron_ablate_fn,
+    raw_neuron_select,
+    reference_mean,
+)

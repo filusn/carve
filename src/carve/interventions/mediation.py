@@ -10,7 +10,20 @@ from __future__ import annotations
 import torch
 
 from ..models.probe import f_decision
-from .hooks import ablate, steer
+from .hooks import ablate, intervene, steer
+
+
+def hooked_decision(probe, encoder, layer, act_fn, images, batch_size: int = 32) -> torch.Tensor:
+    """f(·) with an ARBITRARY activation editor act_fn (a→a′) hooked at block ℓ.
+
+    The uniform entry point every method (SAE ablate/steer AND baselines: raw-neuron,
+    dermfmzero, cav, …) flows through, so the harness treats them identically. act_fn=None
+    is a no-op (the clean forward), used to keep call sites symmetric.
+    """
+    if act_fn is None:
+        return f_decision(probe, encoder, images, layer, batch_size=batch_size)
+    with intervene(encoder, layer, act_fn):
+        return f_decision(probe, encoder, images, layer, batch_size=batch_size)
 
 
 def f_removed(probe, encoder, layer, x_removed, batch_size: int = 32) -> torch.Tensor:

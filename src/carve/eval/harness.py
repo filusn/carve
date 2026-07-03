@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..interventions.mediation import f_intervened
+from ..interventions.hooks import sae_ablate_fn, sae_steer_fn
+from ..interventions.mediation import hooked_decision
 from ..metrics.causal import causal_recovery, off_target, selectivity
 from ..metrics.stats import bootstrap_ci
 from ..models.probe import f_decision
@@ -25,20 +26,34 @@ RUNRECORD_COLUMNS = [
 
 def run_cell(
     meta: dict, enc, layer: int, sae, S, x_art, x_clean, *, labels=None, probe=None,
-    op: str = "ablate", coeff: float | None = None, detection_auroc: float | None = None,
+    op: str = "ablate", coeff: float | None = None, act_fn=None, oracle: bool = False,
+    detection_auroc: float | None = None,
     recovery_eps: float = 1e-3, bootstrap: int = 1000, ci: float = 0.95,
     seed: int = 0, run_dir=None,
 ) -> dict:
     """meta must carry: model, artifact, rho, opacity, selection, method.
 
-    f = zero-shot margin (probe=None) or the induced probe margin. The intervention `op`
-    (ablate/steer feature set S) is applied identically to artifact and clean images so
-    selectivity/off-target are measured on the same footing.
+    f = zero-shot margin (probe=None) or the induced probe margin. Every method is applied
+    identically to artifact and clean images so selectivity/off-target are on the same
+    footing. Three ways to specify the intervention, in priority order:
+      * ``oracle=True``    — input-removal ceiling: the "feat" decisions are f(clean) itself
+                             (R≡1 by construction; the achievable reference row).
+      * ``act_fn`` given   — any activation editor a→a′ (baselines: raw-neuron, dermfmzero,
+                             cav, …); hooked at block ℓ.
+      * else (default)     — SAE ablate/steer of feature set S (Phase-5 back-compat).
     """
     f_art = f_decision(probe, enc, x_art, layer)
     f_removed = f_decision(probe, enc, x_clean, layer)
-    f_feat_art = f_intervened(probe, enc, layer, x_art, sae, S, op=op, coeff=coeff)
-    f_feat_clean = f_intervened(probe, enc, layer, x_clean, sae, S, op=op, coeff=coeff)
+    if oracle:
+        # Removing the artifact at the input maps x_art→clean and leaves x_clean unchanged;
+        # both "feat" decisions are therefore the clean-source decision f_removed.
+        f_feat_art = f_removed
+        f_feat_clean = f_removed
+    else:
+        if act_fn is None:
+            act_fn = sae_ablate_fn(sae, S) if op == "ablate" else sae_steer_fn(sae, S, coeff)
+        f_feat_art = hooked_decision(probe, enc, layer, act_fn, x_art)
+        f_feat_clean = hooked_decision(probe, enc, layer, act_fn, x_clean)
 
     e_in = (f_art - f_removed).numpy()
     R = causal_recovery(f_art, f_feat_art, f_removed, eps=recovery_eps).numpy()
