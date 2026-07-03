@@ -115,4 +115,18 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
   container → "dubious ownership" → run dirs recorded `git_commit=nogit`. Fixed with
   `git config --global --add safe.directory /workspace` in `carve-dev`; **bake into the base
   image / docker-run** so every run captures the commit (INTEGRITY.md).
+- `2026-07-03` — **Full 3-seed × 3-artifact grid (width 16384) — headline firmed up:
+  DETECTION ≈ 1.0, ABLATION RECOVERY ≈ 0.** Run `…234519Z_interventions_grid` (seeds 0/1/2,
+  ρ=0.9, α=1.0, layer 12, eval n=250). Ablate(oracle) causal recovery R (mean±std over seeds):
+  **ruler −0.03±0.13, marker_ink +0.03±0.10, dark_corner +0.01±0.01** — all indistinguishable
+  from 0 despite **detection AUROC 0.994–1.000**. Ablation **selectivity 0.98–0.998** (a pure,
+  causally-inert detector). **Steering** noisy/overshoots (R negative at c≥4, off-target rises
+  to 0.2–0.56 at c=4–8; only ruler c=2 gives R≈+0.24 with off-target 0.08 and poor selectivity
+  ~0.54). **Random control R=0.** ⇒ Robust, multi-seed **detection≠control**: an SAE feature
+  detects each injected artifact near-perfectly yet ablating it recovers ~none of the causal
+  effect; steering only partially and unstably. **CAVEAT (SAE health):** at width 16384/k32 the
+  **dead-feature fraction is high (~55%)** (vs ~5–10% at width 4096) — under-trained/over-wide;
+  before the FINAL numbers, add dead-feature resampling or reduce width, and report cross-seed
+  decoder stability. Next: Stage-6 baselines (CAV/CDEP/raw-neuron/input-oracle) on the same
+  cells — the comparative claim.
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`
