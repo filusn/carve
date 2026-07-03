@@ -33,6 +33,12 @@ def train_sae(activations, cfg=None, seed: int = 0, log=print) -> TopKSAE:
     steps = int(tcfg.get("steps", 2000))
     batch = int(min(tcfg.get("batch", 4096), N))
     lr = float(tcfg.get("lr", 1e-3))
+    # AuxK dead-feature revival (Gao et al. 2024): reconstruct the main residual with the
+    # top-`aux_k` DEAD latents so starved features keep getting a gradient. Default off
+    # (aux_k=0) → identical to the plain TopK loss, so prior runs/tests are unchanged.
+    aux_k = int(tcfg.get("aux_k", 0))
+    aux_coef = float(tcfg.get("aux_coef", 1.0 / 32))
+    dead_window = int(tcfg.get("dead_window", 200))  # steps unfired ⇒ "dead" (auxk-eligible)
 
     sae = TopKSAE(d, width, k).to(dev)
     with torch.no_grad():
@@ -41,12 +47,28 @@ def train_sae(activations, cfg=None, seed: int = 0, log=print) -> TopKSAE:
 
     Xdev = X.to(dev) if X.numel() * 4 < 3_000_000_000 else None  # keep on GPU if < ~3GB
     rng = np.random.default_rng(seed)
-    log(f"[sae] train: N={N} d={d} width={width} k={k} steps={steps} batch={batch} lr={lr} dev={dev}")
+    since_fired = torch.zeros(width, device=dev)  # steps since each feature last fired
+    log(f"[sae] train: N={N} d={d} width={width} k={k} steps={steps} batch={batch} lr={lr} "
+        f"aux_k={aux_k} dev={dev}")
     for step in range(steps):
         idx = rng.integers(0, N, size=batch)
         x = (Xdev[idx] if Xdev is not None else X[idx].to(dev))
-        recon, _ = sae(x)
+        z = sae.encode(x)
+        recon = sae.decode(z)
         loss = (recon - x).pow(2).mean()
+
+        fired = (z > 0).any(dim=0)                                   # [m]
+        since_fired = torch.where(fired, torch.zeros_like(since_fired), since_fired + 1)
+        if aux_k > 0:
+            dead = since_fired > dead_window
+            if int(dead.sum()) > 0:                                   # revive dead latents
+                pre = torch.relu(sae.preacts(x)).masked_fill(~dead.unsqueeze(0), 0.0)
+                kk = min(aux_k, int(dead.sum()))
+                tv, ti = pre.topk(kk, dim=-1)
+                z_aux = torch.zeros_like(pre).scatter_(-1, ti, tv)
+                err = (x - recon).detach()
+                loss = loss + aux_coef * (z_aux @ sae.W_dec - err).pow(2).mean()
+
         opt.zero_grad(set_to_none=True)
         loss.backward()
         opt.step()

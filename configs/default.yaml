@@ -61,21 +61,23 @@ sae:
   kind: topk
   layer: 12                # MONET vision block ℓ the SAE is trained on (d=1024)
   tokens: patch            # train on patch+CLS tokens (spatial artifacts live in patches)
-  width: 16384             # 16x expansion of d=1024 (provisional → freeze in PREREGISTRATION)
-  k: 32                    # TopK sparsity     (provisional → freeze in PREREGISTRATION)
+  width: 4096              # FROZEN: health-selected (dead ≈9.6%, R² ≈0.99). 16384 is ~55% dead.
+  k: 32                    # FROZEN (PREREGISTRATION §4)
   feature_set_size_m: 1    # allow >1 if feature is polysemantic
   train:
     steps: 3000
     batch: 4096
     lr: 0.001
+    aux_k: 256             # AuxK dead-feature revival (Gao 2024); 0 = plain TopK
+    dead_window: 200       # steps unfired ⇒ feature is auxk-eligible ("dead")
   selection:
     oracle: top_auroc_on_select
     discovered: top_activation_variance_unsupervised
 
 interventions:
   ops: [ablate, steer]
-  steer_coeffs: [-1.0, -2.0, -4.0]   # for the steering-response frontier
-  recovery_eps: TODO                  # skip |e_in| < eps
+  steer_coeffs: [-1.0, -2.0, -4.0]   # magnitudes; applied as recovery-direction subtraction (PREREG §2)
+  recovery_eps: 0.001                 # FROZEN: skip per-image |e_in| < eps
 
 baselines:
   # dermfmzero_suppress = top-k SAE-neuron zeroing per artifact (reimplemented from

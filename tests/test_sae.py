@@ -41,6 +41,20 @@ def test_train_reduces_reconstruction_error():
     assert 0.0 <= h1["dead_feature_frac"] <= 1.0
 
 
+def test_auxk_reduces_dead_features():
+    # AuxK revives starved latents via the reconstruction residual, so it only helps when the
+    # SAE actually under-reconstructs. Force that: true sparsity (8) > SAE k (4) ⇒ real residual,
+    # and a wide dict (512) over d=32 ⇒ many latents starve under plain TopK.
+    X = _synthetic_sparse(n=4000, d=32, true_feats=128, k_true=8)
+    base = {"width": 512, "k": 4, "train": {"steps": 1200, "batch": 512, "lr": 1e-3}}
+    plain = train_sae(X, OmegaConf.create({"device": "auto", "sae": base}), seed=0, log=lambda *a: None)
+    auxk_cfg = {"width": 512, "k": 4,
+                "train": {"steps": 1200, "batch": 512, "lr": 1e-3, "aux_k": 64, "dead_window": 50}}
+    revived = train_sae(X, OmegaConf.create({"device": "auto", "sae": auxk_cfg}), seed=0, log=lambda *a: None)
+    assert sae_health(revived, X)["dead_feature_frac"] < sae_health(plain, X)["dead_feature_frac"]
+    assert sae_health(revived, X)["r2"] > 0.5     # reconstruction not sacrificed
+
+
 def test_auroc_columns_matches_sklearn():
     from sklearn.metrics import roc_auc_score
 
