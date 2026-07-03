@@ -9,10 +9,13 @@ carve.interventions, so all numbers stay comparable (INTEGRITY.md §5):
                        (DermFM-Zero, arXiv 2602.10624). The incumbent we validate. → op="ablate", S
   * random_ctrl      — random SAE feature / raw neuron; must do ≈nothing (sanity floor).
   * input_oracle     — remove the artifact at the INPUT = achievable ceiling. → oracle=True
+  * cav              — Reveal2Revise/ClArC concept-vector suppression: clamp the artifact
+                       CAV coordinate to its clean baseline. → act_fn
 
-CAV/Reveal2Revise and CDEP (heavier faithful reimplementations) are added in a second pass.
+CDEP (contextual-decomposition penalty) is the remaining 2nd-pass baseline.
 """
 
+from .cav import cav_baseline_proj, cav_suppress_fn, fit_cav  # noqa: F401
 from .dermfmzero_suppress import dermfmzero_select  # noqa: F401
 from .input_oracle import ORACLE_META  # noqa: F401
 from .random_ctrl import random_raw_neurons, random_sae_features  # noqa: F401

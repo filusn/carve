@@ -19,9 +19,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from carve.data.artifacts import inject, make_biased_set  # noqa: E402
-from carve.data.datasets import make_splits  # noqa: E402
 from carve.data.isic import load_isic_binary  # noqa: E402
-from carve.utils import assert_disjoint, load_config, new_run_dir, save_json, set_seed  # noqa: E402
+from carve.eval.grid import finish_grid, iter_seed_contexts, resolve_seeds, setup_run  # noqa: E402
+from carve.utils import load_config  # noqa: E402
 
 FULL = dict(sae_train=1200, select=300, eval=250, width=16384, k=32, steps=3000)
 QUICK = dict(sae_train=400, select=200, eval=120, width=4096, k=32, steps=800)
@@ -41,18 +41,13 @@ def main() -> None:
     print("=" * 72)
 
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "configs" / "default.yaml"))
-    run = new_run_dir(cfg.paths.runs_dir, "interventions_grid", cfg, int(cfg.get("seed", 0)))
-    size = int(cfg.dataset.image_size)
-    layer = int(cfg.sae.get("layer", 12))
-    cfg.sae.width, cfg.sae.k, cfg.sae.train.steps = N["width"], N["k"], N["steps"]
+    run, layer, size = setup_run(cfg, "interventions_grid", N)
     eps = 1e-3
-    seeds = [0] if args.quick else list(cfg.get("seeds", [0, 1, 2]))
+    seeds = resolve_seeds(cfg, args.quick)
 
-    from carve.eval.aggregate import benchmark_table
     from carve.eval.harness import run_cell
     from carve.models.encoders import load_encoder
     from carve.sae.discovery import select_oracle
-    from carve.sae.train_sae import sae_health, train_sae
 
     enc = load_encoder(cfg)
     ds = load_isic_binary(cfg, image_size=size)
@@ -60,30 +55,13 @@ def main() -> None:
           f"layer {layer}  width {N['width']}")
 
     all_records, health_by_seed = [], {}
-    for seed in seeds:
-        set_seed(seed)
-        splits = make_splits(ds.labels, dict(cfg.dataset.splits), seed=seed, stratify=True)
-        assert_disjoint(**{k: set(v.tolist()) for k, v in splits.items()})
-        sae_idx = splits["sae_train"][: N["sae_train"]]
-        sel_idx = splits["select"][: N["select"]]
-        ev_idx = splits["eval"][: N["eval"]]
-
-        # SAE trained ONCE per seed (artifact-agnostic; injected artifacts appear only in
-        # select/eval, never in sae_train) → reused across all artifacts.
-        print(f"\n[seed {seed}] training SAE ...")
-        acts = enc.activations([ds.load_image(int(i), size=size) for i in sae_idx], layer, pool=None)
-        acts = acts.reshape(-1, acts.shape[-1])
-        sae = train_sae(acts, cfg, seed=seed)
-        health = sae_health(sae, acts[int(0.8 * len(acts)):])
-        health_by_seed[seed] = health
-        print(f"[seed {seed}] SAE R²={health['r2']:.3f}  dead={health['dead_feature_frac']*100:.1f}%")
-
-        sel_imgs = [ds.load_image(int(i), size=size) for i in sel_idx]
-        clean = [ds.load_image(int(i), size=size) for i in ev_idx]
-        labels = ds.labels[ev_idx]
+    for ctx in iter_seed_contexts(cfg, ds, enc, N, seeds, layer, size):
+        seed, sae = ctx.seed, ctx.sae
+        health_by_seed[seed] = ctx.health
+        sel_imgs, clean, labels, ev_idx = ctx.sel_imgs, ctx.clean, ctx.labels, ctx.ev_idx
 
         for artifact in ARTIFACTS:
-            items, _ = make_biased_set(sel_imgs, ds.labels[sel_idx], artifact, rho=RHO, alpha=ALPHA, seed=seed + 1)
+            items, _ = make_biased_set(sel_imgs, ctx.sel_labels, artifact, rho=RHO, alpha=ALPHA, seed=seed + 1)
             oracle = select_oracle(sae, enc, layer, items, top_m=int(cfg.sae.feature_set_size_m))
             S, det = oracle["features"], oracle["best_auroc"]
             x_art = [inject(im, artifact, ALPHA, np.random.default_rng(int(i)))[0]
@@ -107,16 +85,7 @@ def main() -> None:
                   f"sel {cells[0]['selectivity']:.2f} | best steer R="
                   f"{max(c['R_median'] for c in cells[1:-1]):+.3f}")
 
-    save_json(run / "metrics.json", {"health_by_seed": health_by_seed, "records": all_records})
-
-    # ---- mean±std over seeds -------------------------------------------------------------
-    tbl = benchmark_table(run)
-    cols = [c for c in ["artifact", "selection", "method", "detection_auroc_mean",
-                        "R_median_mean", "R_median_std", "selectivity_mean", "off_target_mean"]
-            if c in tbl.columns]
-    print("\n=== benchmark table (mean±std over seeds) ===")
-    print(tbl[cols].to_string(index=False))
-    print(f"\n[run] {run}")
+    finish_grid(run, all_records, health_by_seed, title="benchmark table (mean±std over seeds)")
 
 
 if __name__ == "__main__":

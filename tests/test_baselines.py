@@ -1,11 +1,14 @@
 """Unit tests for the Phase-6 baselines + the generalized run_cell interface.
 Toy tensors + a tiny fake encoder — no MONET/data, runs anywhere."""
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
 from carve.baselines import (
+    cav_suppress_fn,
     dermfmzero_select,
+    fit_cav,
     random_raw_neurons,
     random_sae_features,
     raw_neuron_ablate_fn,
@@ -77,6 +80,33 @@ def test_dermfmzero_selects_top_activated_present_features(monkeypatch):
     items = [{"image": i, "present": bool(present[i])} for i in range(N)]
     out = m.dermfmzero_select(sae=None, encoder=None, layer=12, items=items, top_k=2)
     assert out["features"] == [5, 9]
+
+
+# ── CAV / Reveal2Revise concept suppression ───────────────────────────────────────────
+def test_cav_fit_finds_artifact_direction():
+    rng = np.random.default_rng(1)
+    d, N = 16, 80
+    present = rng.random(N) < 0.5
+    X = rng.normal(0, 0.1, size=(N, d)).astype(np.float32)
+    X[present, 7] += 3.0                                            # the artifact concept
+    items = [{"image": X[i], "present": bool(present[i])} for i in range(N)]
+    out = fit_cav(FakeEncoder(d), 12, items)
+    u = np.abs(np.asarray(out["direction"]))
+    assert int(u.argmax()) == 7                                    # CAV points along dim 7
+    assert out["best_auroc"] > 0.9
+
+
+def test_cav_suppress_clamps_only_its_direction():
+    d = 8
+    u = np.zeros(d, np.float32)
+    u[3] = 1.0                                                     # unit CAV = e_3
+    fn = cav_suppress_fn(u, baseline_proj=0.0)
+    a = torch.zeros(2, 2, d)
+    a[..., 3] = 5.0
+    a[..., 1] = 2.0
+    out = fn(a)
+    assert torch.allclose(out[..., 3], torch.zeros(2, 2), atol=1e-5)   # clamped to baseline
+    assert torch.allclose(out[..., 1], torch.full((2, 2), 2.0))        # orthogonal dims untouched
 
 
 # ── random control ────────────────────────────────────────────────────────────────────

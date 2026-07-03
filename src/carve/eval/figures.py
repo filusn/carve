@@ -21,6 +21,7 @@ _METHOD_STYLE = {
     "sae_ablate": ("CARVE SAE (oracle ablate)", "#0072B2", "o"),
     "sae_steer_c2.0": ("CARVE SAE (steer c=2)", "#56B4E9", "^"),
     "sae_ablate_topk": ("DermFM-Zero (top-k)", "#009E73", "s"),
+    "cav_suppress": ("CAV (Reveal2Revise)", "#CC79A7", "P"),
     "raw_ablate": ("Raw neuron", "#E69F00", "D"),
     "input_remove": ("Input-removal oracle", "#000000", "*"),
 }
