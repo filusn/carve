@@ -75,7 +75,7 @@ sae:
 interventions:
   ops: [ablate, steer]
   steer_coeffs: [-1.0, -2.0, -4.0]   # for the steering-response frontier
-  recovery_eps: TODO                  # skip |e_in| < eps
+  recovery_eps: 1.0e-3                # skip |e_in| < eps; PROVISIONAL — frozen at PREREGISTRATION Step-15
 
 baselines:
   # dermfmzero_suppress = top-k SAE-neuron zeroing per artifact (reimplemented from

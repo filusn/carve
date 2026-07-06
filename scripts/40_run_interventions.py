@@ -46,7 +46,7 @@ def main() -> None:
     size = int(cfg.dataset.image_size)
     layer = int(cfg.sae.get("layer", 12))
     cfg.sae.width, cfg.sae.k, cfg.sae.train.steps = N["width"], N["k"], N["steps"]
-    eps = 1e-3
+    eps = float(cfg.interventions.recovery_eps)
 
     from carve.eval.harness import run_cell
     from carve.models.encoders import load_encoder
