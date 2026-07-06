@@ -12,6 +12,9 @@
 # experiment outputs (keep experiments/ dir + README + curated tables only)
 experiments/runs/
 experiments/**/runs/
+# derived example images are NOT committed: they are pixel derivatives of ISIC-2018 /
+# HAM10000 (CC BY-NC-SA 4.0) real patient photos — regenerate locally, don't redistribute.
+experiments/artifact_examples/
 *.parquet
 wandb/
 
