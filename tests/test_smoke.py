@@ -24,11 +24,22 @@ def test_device_returns_valid():
     assert device("auto") in {"cuda", "mps", "cpu"}
 
 
-@pytest.mark.skip(reason="TODO Phase 1: same seed -> identical injected pixels & masks")
 def test_injection_determinism():
-    ...
+    # implemented in Phase 1 — full coverage in tests/test_injection.py
+    import numpy as np
+
+    from carve.data.artifacts import inject
+
+    img = np.random.default_rng(0).uniform(0.3, 0.8, (32, 32, 3)).astype("float32")
+    a1, m1 = inject(img, "ruler", 0.7, np.random.default_rng(1))
+    a2, m2 = inject(img, "ruler", 0.7, np.random.default_rng(1))
+    assert np.array_equal(a1, a2) and np.array_equal(m1, m2)
 
 
-@pytest.mark.skip(reason="TODO Phase 5: causal_recovery on toy tensors (R=1 perfect, 0 none)")
 def test_causal_recovery_toy():
-    ...
+    # implemented in Phase 5 — full coverage in tests/test_metrics.py
+    from carve.metrics.causal import causal_recovery
+
+    R = causal_recovery([0.55, 0.55], [0.20, 0.55], [0.20, 0.20], eps=1e-6)
+    assert R[0].item() == pytest.approx(1.0)  # feat == removed → perfect recovery
+    assert R[1].item() == pytest.approx(0.0)  # feat == art     → no recovery

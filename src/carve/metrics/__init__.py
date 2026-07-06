@@ -14,8 +14,9 @@ causal.py
     steering_frontier(cause_by_coeff, off_target_by_coeff) -> ndarray     # METRICS §7
 
 stats.py
-    bootstrap_ci(values, n=1000, ci=0.95, rng=...) -> (lo, hi)
-    paired_bootstrap_diff(a, b, n=1000, ci=0.95) -> (mean_diff, lo, hi)   # method comparison
+    bootstrap_ci(values, n=1000, ci=0.95, rng=None, statistic=median) -> (lo, hi)
+    paired_bootstrap_diff(a, b, n=1000, ci=0.95, rng=None) -> (mean_diff, lo, hi)
         # never claim a win whose CI overlaps 0
 """
-raise NotImplementedError("carve.metrics: implement causal.py / stats.py per docs/METRICS.md")
+
+from . import causal, stats  # noqa: F401

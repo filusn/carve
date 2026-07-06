@@ -1,7 +1,9 @@
 # data & heavy artifacts — never commit (see INTEGRITY.md)
-data/
-weights/
-checkpoints/
+# NB: anchored with a leading slash so these only match the repo-root dirs and do NOT
+# swallow the src/carve/data package.
+/data/
+/weights/
+/checkpoints/
 *.pt
 *.pth
 *.ckpt
@@ -10,6 +12,9 @@ checkpoints/
 # experiment outputs (keep experiments/ dir + README + curated tables only)
 experiments/runs/
 experiments/**/runs/
+# derived example images are NOT committed: they are pixel derivatives of ISIC-2018 /
+# HAM10000 (CC BY-NC-SA 4.0) real patient photos — regenerate locally, don't redistribute.
+experiments/artifact_examples/
 *.parquet
 wandb/
 

@@ -16,5 +16,7 @@ probe.py
     train_probe(encoder, layer, probe_train_loader, cfg) -> Probe   # linear or light MLP
     f_decision(probe, encoder, images, layer) -> Tensor             # = cfg.decision_signal
         # the scalar decision signal f(.) used by ALL metrics (logit margin z_pos - z_neg)
+
+Submodules import heavy deps (transformers/torch) lazily — import them directly, e.g.
+``from carve.models.encoders import load_encoder``; the package itself stays light.
 """
-raise NotImplementedError("carve.models: implement encoders.py / probe.py")

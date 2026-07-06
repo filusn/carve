@@ -12,13 +12,20 @@ paths:
   runs_dir: experiments/runs/            # git-ignored; one dir per run
 
 dataset:
-  # Core artifact-labelled pool = Bissoto-labelled ISIC2018+Atlas (clean-canvas filter +
-  # real slice from one source). HAM10000 is the reservoir canvas. FINAL primary canvas is
-  # set after the Phase-0 clean-pool count (docs/DATASETS.md) — `name` may switch to ham10000.
-  name: isic2018_atlas_bissoto           # or ham10000 (reservoir) pending clean-pool count
-  artifact_labels: bissoto               # repo alceubissoto/debiasing-skin (7 cats; no license)
-  task: melanoma_vs_nevus                # binary to start (clean causal signal)
+  # CANVAS RESOLVED (2026-07-03): primary = ISIC-2018 Task3 (HAM10000), the reservoir
+  # canvas, because the Bissoto artifact annotations are NOT available locally → no
+  # verified-clean filter and no Bissoto real-artifact slice (see docs/LOG.md). Injection
+  # is onto HAM10000 images; the gold counterfactual (inject/remove) still owns each
+  # injected artifact's causal effect regardless of any pre-existing real artifacts.
+  name: isic2018_task3                    # HAM10000 canvas (mel-vs-nevus)
+  task: melanoma_vs_nevus                 # binary: MEL(pos)=1 vs NV(neg)=0
+  pos_class: MEL
+  neg_class: NV
+  root: data/isic2018                     # under paths.data_root; symlinked, git-ignored
+  image_subdir: ISIC2018_Task3_Training_Input
+  groundtruth_csv: ISIC2018_Task3_Training_GroundTruth/ISIC2018_Task3_Training_GroundTruth.csv
   image_size: 224
+  # n=7818 (MEL 1113 / NV 6705, ~6:1) — stratify splits + class-weight the probe.
   splits:                                # fractions; must be disjoint
     probe_train: 0.40
     sae_train: 0.25
