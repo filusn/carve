@@ -16,5 +16,15 @@ discovery.py
         # NO injected labels: top activation/variance features on artifact images
     # CRITICAL: selection on `select`, evaluation later on `eval` (disjoint). Keep
     # S_oracle and S_discovered separate and labelled everywhere (no leakage, no conflation).
+
+The SAE operates in MONET's RAW layer-ℓ activation space so carve.interventions can
+ablate/steer features directly on the residual stream (Stage 5).
 """
-raise NotImplementedError("carve.sae: implement train_sae.py / load_sae.py / discovery.py")
+
+from .model import TopKSAE  # noqa: F401
+from .train_sae import decoder_cosine_stability, sae_health, train_sae  # noqa: F401
+from .discovery import (  # noqa: F401
+    discover_unsupervised,
+    discovery_precision_at_k,
+    select_oracle,
+)

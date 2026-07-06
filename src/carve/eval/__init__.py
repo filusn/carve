@@ -17,7 +17,9 @@ figures.py
     recovery_vs_rho(...) ; selectivity_vs_offtarget_scatter(...) ; detection_bars(...)
 
 aggregate.py
-    aggregate(runs_dir) -> DataFrame      # read ALL run dirs (never memory), build the
-                                          # headline benchmark table; mean±std over seeds.
+    load_records(runs_dir) / benchmark_table(runs_dir) -> DataFrame   # read ALL run dirs
+        # (never memory), build the headline table; mean±std over seeds.
 """
-raise NotImplementedError("carve.eval: implement harness.py / aggregate.py / figures.py")
+
+from .harness import RUNRECORD_COLUMNS, run_cell  # noqa: F401
+from .aggregate import benchmark_table, load_records  # noqa: F401

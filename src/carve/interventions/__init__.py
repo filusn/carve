@@ -14,6 +14,12 @@ mediation.py
     feature_effect(probe, encoder, layer, x_art, S, op, coeff=None) -> Tensor
         # e_S  = f(x_art) - f_{-S}(x_art)
     f_removed(probe, encoder, layer, x_art, x_removed) -> Tensor    # f(remove(x_art))
-    # These three feed carve.metrics.causal_recovery (normalized mediation residual).
+    f_intervened(probe, encoder, layer, images, sae, S, op, coeff) -> Tensor  # f_{-S}(·)
+    # These feed carve.metrics.causal_recovery (normalized mediation residual).
+
+Note: ablate/steer take the SAE (the feature lives in its dictionary): ablate subtracts the
+feature's reconstructed contribution z_f·W_dec[f]; steer subtracts coeff·decoder direction.
 """
-raise NotImplementedError("carve.interventions: implement hooks.py / mediation.py")
+
+from .hooks import ablate, intervene, steer  # noqa: F401
+from .mediation import f_intervened, f_removed, feature_effect, input_effect  # noqa: F401

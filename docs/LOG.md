@@ -81,4 +81,38 @@ PREREGISTRATION.md, with reason + date). Keep entries short.
     image diameter). Effect ~halved (zero-shot e_in +0.96→**+0.49**; bias_gap 1.00→**0.945**)
     — smaller footprint ⇒ smaller causal effect, as expected. Still GO. Refreshed run
     `experiments/runs/20260702T223404Z_phase0_gate` (prior larger-marker run `…221857Z`).
+- `2026-07-03` — **Stage 4 SAE built + validated (quick run) — SAE gate half: DETECTION ✓.**
+  TopK SAE (`carve.sae`, raw layer-12 activation space so Stage-5 interventions act directly
+  on the residual stream). Quick run (400 sae_train imgs → 102,800 patch+CLS tokens, width
+  4096, k=32, 800 steps; run `…231421Z_train_sae`): **R²=0.990**, FVU 0.010, dead 9.6%.
+  Discovery on a ρ=0.9 ruler-biased `select` set: **oracle single feature #993 detects the
+  ruler at AUROC 0.997**. Unsupervised (activation-variance) top-5 misses it →
+  **precision@5 = 0.00** — naive unsupervised discovery does NOT surface the artifact feature
+  (reportable detection-vs-discovery dissociation; a contrast-based unsupervised method may
+  do better — try in the full run). Config `sae.width/k` set (16384/32) — freeze in
+  PREREGISTRATION. Remaining gate condition (CAUSAL RECOVERY: does ablating #993 reproduce
+  e_in?) = Stage 5. Still on track: detection strong, recovery TBD.
+- `2026-07-03` — **Stage 5 interventions + harness built → core CARVE result (quick):
+  DETECTION ≠ CONTROL.** `carve.interventions` (ablate = subtract z_f·W_dec[f]; steer =
+  subtract c·decoder dir) + `carve.eval.harness.run_cell` (writes per-cell json + per-image
+  parquet + RunRecord). Quick cell (MONET, ruler, ρ=0.9, α=1.0, layer 12, width-4096 SAE,
+  eval n=150; run `…233021Z_interventions`):
+  - oracle feature detects ruler at **AUROC 0.997** but **ablation causal recovery R=0.150
+    [0.13,0.18]** — far below the 0.5 "substantial mediation" bar. Ablation is highly
+    **selective** (0.997) and zero off-target, but recovers little.
+  - **Steering** raises the effect magnitude (cause↑ with c) but is **not selective**
+    (~0.44–0.50, hits clean images too), recovery stays ≈0 and **overshoots** at c=8
+    (R=−0.12); off-target nonzero. Coefficient-sensitive, unstable.
+  - **Random-feature control** R=0.000 (sanity ✓).
+  ⇒ The headline dissociation CARVE was built to quantify: **an SAE feature can detect an
+  injected artifact almost perfectly yet fail to causally control it.** Quick numbers vary
+  with eval sample (a diagnostic on a different eval slice gave ablation R≈0.04) → the
+  FINAL claim needs the full grid (width 16384, ≥3 seeds, ρ/α sweep, all 3 artifacts) +
+  Stage-6 baselines (does CAV/CDEP/raw-neuron do better?). Steer coeff sign: recovery
+  direction is subtract POSITIVE c (config `interventions.steer_coeffs` are negative →
+  revisit in PREREGISTRATION).
+- `2026-07-03` — **Provenance fix:** git runs as root over uid-1000 `/workspace` in the
+  container → "dubious ownership" → run dirs recorded `git_commit=nogit`. Fixed with
+  `git config --global --add safe.directory /workspace` in `carve-dev`; **bake into the base
+  image / docker-run** so every run captures the commit (INTEGRITY.md).
 - `[YYYY-MM-DD]` — `[decision / deviation + reason]`
