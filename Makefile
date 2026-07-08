@@ -2,7 +2,7 @@
 .PHONY: setup smoke test lint format inject probe sae interventions baselines aggregate clean
 
 setup:           ## create venv + install deps
-	uv venv && . .venv/bin/activate && uv pip install -r requirements.txt
+	uv venv && . .venv/bin/activate && uv pip install -r requirements.txt && uv pip install -e .
 
 smoke:           ## Phase-0 day-1 go/no-go
 	python scripts/01_smoke_test.py

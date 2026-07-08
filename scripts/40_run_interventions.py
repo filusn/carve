@@ -42,7 +42,7 @@ def main() -> None:
 
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "configs" / "default.yaml"))
     run, layer, size = setup_run(cfg, "interventions_grid", N)
-    eps = 1e-3
+    eps = float(cfg.interventions.recovery_eps)   # config-driven (was hardcoded); PREREG-frozen
     seeds = resolve_seeds(cfg, args.quick)
 
     from carve.eval.harness import run_cell
