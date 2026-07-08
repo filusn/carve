@@ -41,7 +41,7 @@ from carve.utils import load_config  # noqa: E402
 
 FULL = dict(sae_train=1200, select=300, eval=250, width=16384, k=32, steps=3000)
 QUICK = dict(sae_train=400, select=200, eval=120, width=4096, k=32, steps=800)
-ARTIFACTS = ["ruler", "marker_ink", "dark_corner"]
+# ARTIFACTS is config-driven (cfg.artifacts.types); resolved in main() — real overlays by default
 RHO, ALPHA = 0.9, 1.0
 DERM_K = 5   # DermFM-Zero's published recipe: top-5 artifact-activated neurons
 
@@ -57,9 +57,10 @@ def main() -> None:
     print("=" * 72)
 
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "configs" / "default.yaml"))
+    ARTIFACTS = list(cfg.artifacts.types)   # config-driven; default = real ruler + arrow overlays
     run, layer, size = setup_run(cfg, "baselines_grid", N)
     m = int(cfg.sae.feature_set_size_m)          # SAE feature-set size == matched raw budget
-    eps = 1e-3
+    eps = float(cfg.interventions.recovery_eps)  # config-driven (was hardcoded); PREREG-frozen
     seeds = resolve_seeds(cfg, args.quick)
 
     from carve.eval.harness import run_cell

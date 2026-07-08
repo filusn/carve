@@ -3,7 +3,13 @@ import numpy as np
 import pytest
 
 from carve.data import artifacts as A
-from carve.data.artifacts import ARTIFACT_KINDS, inject, remove
+from carve.data.artifacts import (
+    ALL_ARTIFACT_KINDS,
+    ARTIFACT_KINDS,
+    LEGACY_ARTIFACT_KINDS,
+    inject,
+    remove,
+)
 
 
 def _img(h=64, w=64, seed=0):
@@ -11,7 +17,7 @@ def _img(h=64, w=64, seed=0):
     return (rng.uniform(0.3, 0.8, (h, w, 3))).astype(np.float32)
 
 
-@pytest.mark.parametrize("kind", ARTIFACT_KINDS)
+@pytest.mark.parametrize("kind", ALL_ARTIFACT_KINDS)
 def test_inject_determinism(kind):
     img = _img()
     a1, m1 = inject(img, kind, 0.7, np.random.default_rng(123))
@@ -20,7 +26,7 @@ def test_inject_determinism(kind):
     assert np.array_equal(m1, m2)
 
 
-@pytest.mark.parametrize("kind", ARTIFACT_KINDS)
+@pytest.mark.parametrize("kind", ALL_ARTIFACT_KINDS)
 def test_inject_shapes_and_range(kind):
     img = _img(48, 80)
     art, mask = inject(img, kind, 0.7, np.random.default_rng(1))
@@ -31,14 +37,14 @@ def test_inject_shapes_and_range(kind):
     assert mask.sum() > 0  # the artifact actually covers something
 
 
-@pytest.mark.parametrize("kind", ARTIFACT_KINDS)
+@pytest.mark.parametrize("kind", ALL_ARTIFACT_KINDS)
 def test_alpha_zero_is_noop(kind):
     img = _img()
     art, _ = inject(img, kind, 0.0, np.random.default_rng(7))
     assert np.allclose(art, img, atol=1e-6)
 
 
-@pytest.mark.parametrize("kind", ARTIFACT_KINDS)
+@pytest.mark.parametrize("kind", ALL_ARTIFACT_KINDS)
 def test_alpha_monotonic_change(kind):
     img = _img()
     art_lo, _ = inject(img, kind, 0.3, np.random.default_rng(42))
@@ -92,3 +98,32 @@ def test_make_biased_set_consistency():
     # rho=0.9 => positives much more likely to carry the artifact than negatives
     r = summary["realized"]
     assert r["p_present_given_pos"] > r["p_present_given_neg"]
+
+
+def test_default_kinds_are_real_overlays():
+    # the pipeline default is the real photographic overlays; legacy synthetic is opt-in
+    assert ARTIFACT_KINDS == ["ruler", "arrow"]
+    assert set(LEGACY_ARTIFACT_KINDS) == {"ruler_synthetic", "marker_ink", "dark_corner"}
+    assert set(ARTIFACT_KINDS).isdisjoint(LEGACY_ARTIFACT_KINDS)
+
+
+@pytest.mark.parametrize("kind", ["ruler", "arrow", "overlay_both"])
+def test_real_overlay_is_per_pixel_and_covers(kind):
+    img = _img(120, 160)
+    art, mask = inject(img, kind, 1.0, np.random.default_rng(2))
+    assert art.shape == img.shape and mask.shape == img.shape[:2]
+    assert mask.sum() > 0                                   # overlay actually landed
+    changed = np.abs(art - img).sum(-1) > 1e-6
+    assert changed.any()                                    # it actually altered the image
+    assert not (changed & (mask <= 0.0)).any()              # but only under the overlay footprint
+    # exact gold counterfactual holds for the photographic overlays too
+    assert np.array_equal(remove(art, mask, source=img), A._to_float_rgb(img))
+
+
+@pytest.mark.parametrize("kind", ["ruler", "arrow", "overlay_both"])
+@pytest.mark.parametrize("hw", [(32, 32), (48, 80), (224, 224)])
+def test_real_overlay_nonempty_across_sizes_and_seeds(kind, hw):
+    h, w = hw
+    for s in range(5):  # footprint guarantee must hold for every seed / canvas size
+        _, mask = inject(_img(h, w, seed=s), kind, 1.0, np.random.default_rng(s))
+        assert mask.sum() > 0

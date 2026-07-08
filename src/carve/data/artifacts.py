@@ -1,7 +1,9 @@
 """Controlled artifact injection + gold counterfactual removal.
 
-Pure numpy, CPU-only, deterministic per seed. Implements the contracts in
-tests/test_injection.py. See docs/EXECUTION_PLAN.md Phase 1 and docs/METRICS.md §Notation.
+CPU-only, deterministic per seed. Implements the contracts in tests/test_injection.py.
+See docs/EXECUTION_PLAN.md Phase 1 and docs/METRICS.md §Notation. Numpy for the compositing
+math; Pillow only to rasterize the real photographic overlays (rulers/arrows) — the placement
+is still driven entirely by the passed numpy RNG, so injection stays deterministic per seed.
 
 The premise of CARVE: because we *paste in* the artifact, we own the ground-truth clean
 image, so ``remove(x_art, mask, source=clean)`` is an EXACT counterfactual — the truth
@@ -14,13 +16,28 @@ Each ``inject`` returns ``(image, mask)`` with:
 Blend is a convex combination controlled by opacity α:
     out = img·(1 − α·mask) + color·(α·mask)
 so α=0 is an exact no-op and larger α means a strictly larger deviation from the input.
+``color`` may be a single RGB (synthetic marks) or a full HxWx3 image (real overlays); the
+blend broadcasts either way.
+
+Two families of artifacts:
+  • real overlays (DEFAULT): ``ruler`` (dermoscopy rulers, m*.png) and ``arrow`` (annotation
+    arrows, a*.png), real PNG templates bundled under ``overlays/`` and composited with their
+    own alpha. ``overlay_both`` layers a ruler + an arrow. These are the pipeline default.
+  • synthetic marks (LEGACY, opt-in): ``ruler_synthetic`` (procedural rule+ticks),
+    ``marker_ink`` (pen dot), ``dark_corner`` (vignette) — the original numpy-drawn set.
 """
 from __future__ import annotations
 
-import numpy as np
+import math
+from pathlib import Path
 
-# ≥3 required for the MVP (docs/EXECUTION_PLAN.md Phase 1). text_overlay is optional/later.
-ARTIFACT_KINDS = ["ruler", "marker_ink", "dark_corner"]
+import numpy as np
+from PIL import Image
+
+# DEFAULT set = real photographic overlays (rulers + arrows). See _BUILDERS below.
+ARTIFACT_KINDS = ["ruler", "arrow"]
+# Original synthetic marks, kept as an opt-in option (set configs artifacts.types to use them).
+LEGACY_ARTIFACT_KINDS = ["ruler_synthetic", "marker_ink", "dark_corner"]
 
 
 # --------------------------------------------------------------------------------------
@@ -108,11 +125,131 @@ def _dark_corner(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, 
     return mask, color
 
 
+# --------------------------------------------------------------------------------------
+# real photographic overlays (rulers / arrows) — bundled PNG templates, RNG-driven placement
+# --------------------------------------------------------------------------------------
+_OVERLAY_ROOT = Path(__file__).resolve().parent / "overlays"
+_TEMPLATE_SPEC = {"ruler": ("rulers", "m*.png"), "arrow": ("arrows", "a*.png")}
+_TEMPLATE_CACHE: dict[str, list[Image.Image]] = {}
+
+
+def _templates(family: str) -> list[Image.Image]:
+    """Load & cache the RGBA overlay templates for a family, sorted for determinism."""
+    if family not in _TEMPLATE_CACHE:
+        subdir, pattern = _TEMPLATE_SPEC[family]
+        d = _OVERLAY_ROOT / subdir
+        paths = sorted(d.glob(pattern))
+        if not paths:
+            raise FileNotFoundError(
+                f"no {family!r} overlay templates under {d} (pattern {pattern!r}); bundle "
+                "the PNGs in src/carve/data/overlays/ — see docs/EXECUTION_PLAN.md Phase 1"
+            )
+        _TEMPLATE_CACHE[family] = [Image.open(p).convert("RGBA") for p in paths]
+    return _TEMPLATE_CACHE[family]
+
+
+def _placed_layer(overlay: Image.Image, h: int, w: int, px: int, py: int) -> Image.Image:
+    """Paste an RGBA overlay (its own alpha preserved) at (px,py) onto a transparent HxW canvas.
+    ``paste`` (no mask) copies all four bands and clips to the canvas, so partial-off-canvas
+    placement is fine."""
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    layer.paste(overlay, (int(px), int(py)))
+    return layer
+
+
+def _ruler_layer(h: int, w: int, rng: np.random.Generator) -> Image.Image:
+    """A dermoscopy ruler overlay, resized/rotated/positioned near an edge (avoids dead-center).
+    Adapted from projects/masks-rulers MedicalOverlayTransform, RNG-driven for determinism."""
+    tpl = _templates("ruler")
+    ruler = tpl[int(rng.integers(len(tpl)))]
+    longer = max(h, w)
+    target = max(1, int(longer * float(rng.uniform(0.4, 0.8))))
+    rw, rh = ruler.size
+    if rw >= rh:
+        new_w, new_h = target, max(1, round(rh * target / rw))
+    else:
+        new_h, new_w = target, max(1, round(rw * target / rh))
+    over = ruler.resize((new_w, new_h), Image.LANCZOS).rotate(
+        float(rng.uniform(0, 360)), expand=True, resample=Image.BICUBIC, fillcolor=(0, 0, 0, 0)
+    )
+    ow, oh = over.size
+    center = (w / 2.0, h / 2.0)
+    avoid_r = 0.4 * min(h, w) / 2.0  # keep the ruler out of the central 40%-diameter disk
+    lo_x, hi_x = -ow // 3, w - (2 * ow) // 3
+    lo_y, hi_y = -oh // 3, h - (2 * oh) // 3
+    lo_x, hi_x = min(lo_x, hi_x), max(lo_x, hi_x)
+    lo_y, hi_y = min(lo_y, hi_y), max(lo_y, hi_y)
+    px = py = 0
+    for _ in range(100):
+        px = int(rng.integers(lo_x, hi_x + 1))
+        py = int(rng.integers(lo_y, hi_y + 1))
+        cx, cy = px + ow / 2.0, py + oh / 2.0
+        if (cx - center[0]) ** 2 + (cy - center[1]) ** 2 > avoid_r ** 2:
+            break
+    return _placed_layer(over, h, w, px, py)
+
+
+def _arrow_layer(h: int, w: int, rng: np.random.Generator) -> Image.Image:
+    """An annotation arrow overlay placed off-centre and rotated to point at the lesion centre.
+    Adapted from projects/masks-rulers MedicalOverlayTransform, RNG-driven for determinism."""
+    tpl = _templates("arrow")
+    arrow = tpl[int(rng.integers(len(tpl)))]
+    longer = max(h, w)
+    target = max(1, int(longer * float(rng.uniform(0.15, 0.3))))
+    arrow = arrow.resize((target, target), Image.LANCZOS)
+    cx, cy = w / 2.0, h / 2.0
+    radius = float(rng.uniform(0.4 * longer / 2.0, 0.6 * longer / 2.0))
+    ang = float(rng.uniform(0, 2 * math.pi))
+    ax, ay = cx + radius * math.cos(ang), cy + radius * math.sin(ang)
+    dx, dy = cx - ax, cy - ay
+    rot = -math.degrees(math.atan2(dx, -dy))  # arrow's tip turns toward the centre
+    arrow = arrow.rotate(rot, resample=Image.BICUBIC, expand=True, fillcolor=(0, 0, 0, 0))
+    aw, ah = arrow.size
+    return _placed_layer(arrow, h, w, round(ax - aw / 2.0), round(ay - ah / 2.0))
+
+
+_LAYER_FN = {"ruler": _ruler_layer, "arrow": _arrow_layer}
+
+
+def _overlay_builder(*families: str):
+    """Build a (mask, color) builder that layers one or more real overlays onto a canvas.
+
+    color is a full HxWx3 image (the overlay's RGB); mask is its per-pixel alpha coverage.
+    Guarantees a non-empty footprint (retries centred) so mask.sum() > 0 as the tests require.
+    """
+
+    def build(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+        layer = _LAYER_FN[families[0]](h, w, rng)
+        for fam in families[1:]:
+            layer = Image.alpha_composite(layer, _LAYER_FN[fam](h, w, rng))
+        arr = np.asarray(layer, dtype=np.float32) / 255.0  # HxWx4
+        mask = np.ascontiguousarray(arr[..., 3])
+        if mask.sum() == 0:  # overlay fell fully off-canvas (tiny canvases): drop it dead-centre
+            fam = families[0]
+            over = _templates(fam)[int(rng.integers(len(_templates(fam))))]
+            side = max(1, min(h, w) // 2)
+            over = over.resize((side, side), Image.LANCZOS)
+            layer = _placed_layer(over, h, w, (w - side) // 2, (h - side) // 2)
+            arr = np.asarray(layer, dtype=np.float32) / 255.0
+            mask = np.ascontiguousarray(arr[..., 3])
+        color = np.ascontiguousarray(arr[..., :3])
+        return mask, color
+
+    return build
+
+
 _BUILDERS = {
-    "ruler": _ruler,
+    # DEFAULT: real photographic overlays
+    "ruler": _overlay_builder("ruler"),
+    "arrow": _overlay_builder("arrow"),
+    "overlay_both": _overlay_builder("ruler", "arrow"),
+    # LEGACY: original synthetic marks (opt-in)
+    "ruler_synthetic": _ruler,
     "marker_ink": _marker_ink,
     "dark_corner": _dark_corner,
 }
+# every registered kind (real defaults + composite + synthetic legacy)
+ALL_ARTIFACT_KINDS = list(_BUILDERS)
 
 
 # --------------------------------------------------------------------------------------
@@ -127,7 +264,7 @@ def inject(
     Same rng state ⇒ identical pixels and mask.
     """
     if kind not in _BUILDERS:
-        raise ValueError(f"unknown artifact kind {kind!r}; expected one of {ARTIFACT_KINDS}")
+        raise ValueError(f"unknown artifact kind {kind!r}; expected one of {ALL_ARTIFACT_KINDS}")
     base = _to_float_rgb(img)
     h, w = base.shape[:2]
     mask, color = _BUILDERS[kind](h, w, rng)

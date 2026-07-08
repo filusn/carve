@@ -25,7 +25,7 @@ from carve.utils import load_config  # noqa: E402
 
 FULL = dict(sae_train=1200, select=300, eval=250, width=16384, k=32, steps=3000)
 QUICK = dict(sae_train=400, select=200, eval=120, width=4096, k=32, steps=800)
-ARTIFACTS = ["ruler", "marker_ink", "dark_corner"]
+# ARTIFACTS is config-driven (cfg.artifacts.types); resolved in main() — real overlays by default
 RHO, ALPHA = 0.9, 1.0
 STEER_COEFFS = [2.0, 4.0, 8.0]   # subtract c·decoder dir (recovery direction)
 
@@ -41,6 +41,7 @@ def main() -> None:
     print("=" * 72)
 
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "configs" / "default.yaml"))
+    ARTIFACTS = list(cfg.artifacts.types)   # config-driven; default = real ruler + arrow overlays
     run, layer, size = setup_run(cfg, "interventions_grid", N)
     eps = float(cfg.interventions.recovery_eps)   # config-driven (was hardcoded); PREREG-frozen
     seeds = resolve_seeds(cfg, args.quick)

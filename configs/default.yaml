@@ -50,7 +50,10 @@ model:
   layer_sweep: [4, 6, 8, 10]      # report all; pick by rule
 
 artifacts:
-  types: [ruler, marker_ink, dark_corner]   # text_overlay if time
+  # DEFAULT = real photographic overlays (rulers m*.png + arrows a*.png), bundled under
+  # src/carve/data/overlays/ and composited with their own alpha. overlay_both layers both.
+  types: [ruler, arrow]                       # also available: overlay_both
+  legacy_types: [ruler_synthetic, marker_ink, dark_corner]  # opt-in synthetic marks (old set)
   opacity: [0.4, 0.7, 1.0]
   rho: [0.5, 0.7, 0.9, 1.0]                  # spurious-correlation strength
   real_overlay: true                          # Phase-7 real-artifact slice (Bissoto)
