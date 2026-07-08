@@ -5,7 +5,7 @@
 > analyses are allowed but must be labelled exploratory. Any deviation is logged in §9.
 
 - **Frozen on:** `2026-07-03` — **git commit:** `0840de8` (freeze commit adds this file) —
-  **by:** Bartlomiej Moniak (with Claude Code)
+  **by:** Bartlomiej Moniak
 - **Status:** ☑ FROZEN
 
 ## 1. Hypotheses (pre-specified)

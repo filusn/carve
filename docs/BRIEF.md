@@ -1,67 +1,69 @@
 # CARVE — project brief
 
-**CARVE (Causal ARtifact Validation of Encodings)** — a benchmark testing whether
-sparse-autoencoder (SAE) interpretability can *causally control* a medical foundation
-model's known failure mode, not merely correlate with it.
+**CARVE (Causal ARtifact Validation of Encodings)** — a test of whether interpretability tools
+can truly *switch off* a medical AI model's known bad habit, not just *notice* it.
 
 ## TL;DR
-Dermatology models cheat on non-diagnostic artifacts (rulers, pen ink, dark corners).
-People use interpretability tools to find and switch off the "artifact feature," but on real
-data you can't verify you found the *right* one. CARVE **injects** the artifact itself — so
-its true causal effect is known — then measures whether intervening on an SAE feature
-**recovers** that effect, **selectively**, and **without collateral damage**, benchmarked
-head-to-head against the established methods. Because we own the ground truth, there is
-always a reportable result.
+Skin-cancer AI models often cheat: they read junk in the photo (rulers, pen ink, dark corners)
+instead of the actual skin spot. People use interpretability tools to find the "junk feature"
+inside the model and turn it off — but on real photos you can't prove you found the *right* one.
+CARVE **pastes the junk in itself**, so its true effect is known. Then it checks whether turning
+off a candidate feature really **undoes** that effect, does it **only where the junk is**, and
+does it **without breaking anything else** — racing the popular tools side by side. Because we own
+the answer key, we always get a result worth reporting.
+
+(An SAE — sparse autoencoder — is a tool that splits the model's inner activity into many simple,
+readable "features.")
 
 ## The problem
-Skin-cancer classifiers latch onto artifacts instead of the lesion (e.g. Winkler 2019:
-adding surgical ink dropped specificity 84%→46%; in ISIC, colored patches sit on ~46% of
-benign and 0% of malignant images). The field now uses SAEs / concept vectors to find and
-suppress the responsible feature — but on natural images the artifact's true causal effect
-is unknown, so claims stay correlational.
+Skin-cancer classifiers grab onto artifacts instead of the lesion (e.g. Winkler 2019: adding
+surgical ink dropped specificity 84%→46%; in ISIC, colored patches sit on ~46% of benign and 0%
+of malignant images). The field now uses SAEs / concept vectors to find and mute the guilty
+feature — but on natural photos the artifact's true effect is unknown, so the claims stay
+correlational (a matching pattern, not proven cause).
 
 ## The idea (the one trick)
-We **inject** the artifact at a controlled strength and opacity. Because we paste it in, we
-know its true causal effect — just remove it from the input and measure the change. That is
-our gold-standard "truth meter." We then intervene on the candidate SAE feature and ask:
-- **Recovery** — does flipping the feature reproduce the input-level effect?
-- **Selectivity** — does it change only contaminated cases, not clean ones?
+We **paste** the artifact in at a chosen strength and see-through-ness. Because we pasted it, we
+know its true effect — just remove it from the photo and measure the change. That's our
+gold-standard "truth meter." Then we act on the candidate SAE feature and ask:
+- **Recovery** — does flipping the feature reproduce the effect we saw at the input?
+- **Selectivity** — does it change only the contaminated photos, not the clean ones?
 - **Off-target** — what else breaks?
 
-We run this for SAE steering **and** the incumbents — CAV/Reveal2Revise, CDEP, raw-neuron
-ablation, DermFM-Zero-style top-k suppression, plus random-feature and input-removal controls
-— on the **same** ground truth, and report who wins, honestly.
+We run this for SAE steering **and** the rivals — CAV/Reveal2Revise, CDEP, raw-neuron ablation,
+DermFM-Zero-style top-k muting, plus random-feature and input-removal controls — all on the
+**same** answer key, and report who wins, honestly.
 
 ## Why it's worth doing
-- **Low risk:** we own the ground truth, so a result is guaranteed — even "SAEs don't beat a
-  single neuron" is a publishable finding.
-- **Novel:** prior work (incl. DermFM-Zero, Feb 2026) *uses* SAEs to suppress artifacts and
-  shows accuracy improves — an *application*. Nobody has *validated* whether the
-  interpretability claim is causally true, how selective it is, or which method wins. CARVE
-  is that controlled validation/benchmark. (We did a two-pass overlap check: LOW overlap.)
-- **Fits the thesis:** reliable, auditable visual decision support.
+- **Low risk:** we own the answer key, so a result is guaranteed — even "SAEs don't beat a single
+  neuron" is worth publishing.
+- **New:** earlier work (incl. DermFM-Zero, Feb 2026) *uses* SAEs to mute artifacts and shows
+  accuracy goes up — an *application*. Nobody has *checked* whether the interpretability claim is
+  actually true, how selective it is, or which method wins. CARVE is that controlled check. (We
+  ran a two-pass overlap check: LOW overlap.)
+- **Fits the thesis:** reliable, checkable visual decision support.
 
 ## Setup
-- **Data:** Bissoto-labelled ISIC 2018 + Atlas (artifact labels: ruler/ink/hair/…) as core —
-  gives both a verified-clean injection canvas and a real-artifact reality-check slice;
-  HAM10000 (melanoma-vs-nevus) as the larger reservoir. **Public + synthetic only; no
-  private data, no new annotation.**
-- **Model:** MONET (dermatology CLIP, public weights) primary; CLIP ViT-B/16 as a generality
-  check (ships pretrained SAEs).
-- **Method:** TopK SAE on frozen features; activation patching / steering via ViT-Prisma.
-- **Two bias arms:** zero-shot (no training — purest causal ground truth) + induced
-  (controlled spurious-correlation strength ρ).
+- **Data:** Bissoto-labelled ISIC 2018 + Atlas (artifact labels: ruler/ink/hair/…) as the core —
+  it gives both a verified-clean canvas to paste on and a real-artifact reality-check slice;
+  HAM10000 (melanoma-vs-nevus) as the bigger pool. **Public + synthetic only; no private data, no
+  new labeling.**
+- **Model:** MONET (a dermatology CLIP model, public weights) as the main one; CLIP ViT-B/16 as a
+  does-it-generalize check (it ships with pretrained SAEs).
+- **Method:** TopK SAE on frozen features; edit/steer the activity via ViT-Prisma.
+- **Two ways to create bias:** zero-shot (no training — cleanest answer key) + induced (a fake
+  correlation we set at strength ρ).
 
 ## Target
 MI4MedFM @ MICCAI 2026 workshop, **Track 1 (8–10 pp, archival)**. Deadline **15 Jul 2026**.
 
 ## Integrity guardrails
-Pre-register before final runs; disjoint splits (no leakage); fair baselines (we benchmark
-the rivals' own method); negative results are valid; synthetic→real claims stay bounded; no
-fabricated numbers or citations.
+Pre-register before final runs; keep splits separate (no leakage); run the rivals' own methods
+fairly; negative results are valid; keep synthetic→real claims modest; no made-up numbers or
+citations.
 
-## Work modules (parallelizable once the injector lands)
-1. Data loaders + artifact injector (`inject`/`remove`, deterministic) + seeded disjoint splits
+## Work modules (can run in parallel once the injector is done)
+1. Data loaders + artifact injector (`inject`/`remove`, repeatable) + seeded separate splits
 2. Encoder/probe + bias measurement (zero-shot & induced arms)
 3. SAE training + feature discovery (oracle vs. unsupervised)
 4. Interventions + metrics harness (recovery / selectivity / off-target)
