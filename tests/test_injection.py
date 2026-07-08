@@ -103,8 +103,22 @@ def test_make_biased_set_consistency():
 def test_default_kinds_are_real_overlays():
     # the pipeline default is the real photographic overlays; legacy synthetic is opt-in
     assert ARTIFACT_KINDS == ["ruler", "arrow"]
-    assert set(LEGACY_ARTIFACT_KINDS) == {"ruler_synthetic", "marker_ink", "dark_corner"}
+    assert set(LEGACY_ARTIFACT_KINDS) == {
+        "ruler_synthetic",
+        "marker_ink",
+        "dark_corner",
+        "black_corner",
+    }
     assert set(ARTIFACT_KINDS).isdisjoint(LEGACY_ARTIFACT_KINDS)
+
+
+def test_black_corner_is_hard_circle():
+    # black_corner is a dermoscope-style HARD circular cutoff, not a smooth vignette:
+    # centre visible (mask==0), corners black (mask==1), and the mask is strictly binary.
+    _, mask = inject(_img(64, 64), "black_corner", 0.8, np.random.default_rng(0))
+    assert mask[32, 32] == 0.0            # centre pixel: inside the circle => fully visible
+    assert mask[0, 0] == 1.0              # corner pixel: outside the circle => fully black
+    assert set(np.unique(mask)).issubset({0.0, 1.0})  # binary: sharp edge, no gradient
 
 
 @pytest.mark.parametrize("kind", ["ruler", "arrow", "overlay_both"])

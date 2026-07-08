@@ -24,7 +24,9 @@ Two families of artifacts:
     arrows, a*.png), real PNG templates bundled under ``overlays/`` and composited with their
     own alpha. ``overlay_both`` layers a ruler + an arrow. These are the pipeline default.
   • synthetic marks (LEGACY, opt-in): ``ruler_synthetic`` (procedural rule+ticks),
-    ``marker_ink`` (pen dot), ``dark_corner`` (vignette) — the original numpy-drawn set.
+    ``marker_ink`` (pen dot), ``dark_corner`` (original smooth vignette), ``black_corner``
+    (hard circular cutoff mimicking a real dermoscope's circular field-of-view) — the
+    original numpy-drawn set.
 """
 from __future__ import annotations
 
@@ -37,7 +39,7 @@ from PIL import Image
 # DEFAULT set = real photographic overlays (rulers + arrows). See _BUILDERS below.
 ARTIFACT_KINDS = ["ruler", "arrow"]
 # Original synthetic marks, kept as an opt-in option (set configs artifacts.types to use them).
-LEGACY_ARTIFACT_KINDS = ["ruler_synthetic", "marker_ink", "dark_corner"]
+LEGACY_ARTIFACT_KINDS = ["ruler_synthetic", "marker_ink", "dark_corner", "black_corner"]
 
 
 # --------------------------------------------------------------------------------------
@@ -122,6 +124,27 @@ def _dark_corner(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, 
     if mask.sum() == 0:
         mask[0, 0] = 1.0
     color = np.zeros(3, np.float32)  # black corners
+    return mask, color
+
+
+def _black_corner(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """A dermoscope's circular field-of-view: a HARD circular cutoff.
+
+    Inside a centred circle the skin is fully visible (mask=0); outside it is solid black
+    (mask=1) with a sharp edge — no gradient. The circle is the inscribed circle,
+    ``min(h, w) / 2`` (so it touches the shorter-side edges and the four corners are black),
+    with a small deterministic radius/centre jitter from ``rng`` so it varies per image while
+    staying a hard circle. mask is binary in {0.0, 1.0}; corners are always covered so
+    ``mask.sum() > 0`` for any radius ≤ the inscribed circle.
+    """
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    # subtle centre jitter: a few percent of the image, deterministic in rng
+    cy = (h - 1) / 2.0 + float(rng.uniform(-0.03, 0.03)) * h
+    cx = (w - 1) / 2.0 + float(rng.uniform(-0.03, 0.03)) * w
+    radius = (min(h, w) / 2.0) * float(rng.uniform(0.92, 1.0))  # small radius jitter
+    dist = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
+    mask = (dist > radius).astype(np.float32)  # sharp edge: black strictly outside the circle
+    color = np.zeros(3, np.float32)  # solid black outside the field-of-view
     return mask, color
 
 
@@ -247,6 +270,7 @@ _BUILDERS = {
     "ruler_synthetic": _ruler,
     "marker_ink": _marker_ink,
     "dark_corner": _dark_corner,
+    "black_corner": _black_corner,
 }
 # every registered kind (real defaults + composite + synthetic legacy)
 ALL_ARTIFACT_KINDS = list(_BUILDERS)
