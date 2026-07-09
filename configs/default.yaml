@@ -81,6 +81,8 @@ interventions:
   ops: [ablate, steer]
   steer_coeffs: [-1.0, -2.0, -4.0]   # magnitudes; applied as recovery-direction subtraction (PREREG §2)
   recovery_eps: 0.001                 # FROZEN: skip per-image |e_in| < eps
+  feature_set_sizes: [1, 3, 5, 10, 20]   # #1: SAE-ablation m-sweep (features ablated together)
+  steer_grid: [0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0]  # #2: best-case steering coeff search
 
 baselines:
   # dermfmzero_suppress = top-k SAE-neuron zeroing per artifact (reimplemented from

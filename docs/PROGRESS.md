@@ -26,6 +26,10 @@ saved. Nothing here is made up.
 - 🔁 **Replicated on realistic marks:** the "detects but can't control" result also holds for a
   **new artifact set** — real ruler + arrow photo overlays and a hard dermoscope-style black circle
   (`black_corner`). See **§5** (originals in §1–§2 kept for comparison).
+- 🛡️ **Survives a fair-shot stress test:** even switching off 20× more features, or handing steering a
+  per-image *best-case* strength (an upper bound no real method beats), still doesn't recover the answer
+  (control caps at ~0.1 for multi-feature ablation, ~0.3–0.8 for oracle steering, vs 1.0 for erasing the
+  mark) — and only by hurting selectivity. Detecting ≠ controlling. See **§5.3**.
 - 🚧 **Not done yet:** the final big experiment sweep (varying artifact strength), one leftover
   baseline (CDEP), and finishing one health-check on the SAE.
 
@@ -276,6 +280,53 @@ nothing overwritten): Phase-0 `…224940Z_phase0_gate`, interventions `…225108
 baselines `…233117Z_baselines_grid`. Code: commit `403377e` on `phase6-baselines` (the run dirs record
 `git_commit: nogit` because git isn't installed inside the run container). Width note: this grid uses
 the scripts' width-16384 setting to stay comparable to §2; the PREREGISTRATION-frozen width is 4096.
+
+### 5.3 Fair-shot stress test — more features? best-case steering? (added 2026-07-09)
+
+The obvious challenge to "detects but can't control" is: *"you only switched off ONE feature, and
+you picked a bad steering strength."* So we gave the interpretability tools their **fairest shot**
+and re-ran the new artifact set (ρ=0.9, α=1.0, width-16384, 3 seeds):
+
+- **#1 — switch off more features.** Instead of the single best feature, ablate the top-**m** artifact
+  features together, for m = 1, 3, 5, 10, 20.
+- **#2 — best-case steering.** For steering, don't fix one strength: give each image its *own* best
+  steering strength — the one that drives that image's answer closest to clean (a per-image **oracle**
+  coefficient). No real single-strength method can beat this; it's an upper bound.
+
+**#1 — ablating more features (recovery R, mean±std over seeds; selectivity in italics):**
+
+| artifact | m=1 | m=5 | m=20 | selectivity m=1→m=20 |
+|---|---|---|---|---|
+| arrow | +0.00 | +0.04 | **+0.12** ±0.06 | *0.99 → 0.91* |
+| ruler | +0.00 | +0.02 | **+0.07** ±0.01 | *0.87 → 0.82* |
+| black_corner | +0.00 | −0.03 | **−0.01** ±0.05 | *1.00 → 0.98* |
+
+Switching off 20× as many features nudges recovery to **at most +0.12** (arrow) and does nothing for
+black_corner — still nowhere near the input-removal ceiling of **1.0** — while **selectivity erodes**
+(you start damaging clean images). More features ≠ control.
+
+**#2 — steering (recovery R):**
+
+| artifact | fixed-strength curve (peak → overshoot) | **best-case** (per-image oracle) |
+|---|---|---|
+| arrow | peaks +0.10 (c≈1) → −0.38 (c=16) | **+0.78** ±0.09  (*sel 0.66*) |
+| ruler | −0.12 (c=0.5) → **−3.4** (c=16) | **+0.33** ±0.44  (*sel 0.54*) |
+| black_corner | +0.01 (c=0.5) → −0.78 (c=8) | **+0.29** ±0.32  (*sel 0.45*) |
+
+No single steering strength recovers the answer: the curve barely rises then **overshoots hard past
+clean into the wrong direction** (ruler → −3.4). Even the **best-case per-image oracle** strength — an
+upper bound no real method can reach — recovers only **+0.78 (arrow) / +0.33 (ruler) / +0.29
+(black_corner)**, never the full 1.0, is **unreliable across seeds** (ruler ±0.44), and gets there only
+by **wrecking selectivity** (0.45–0.66 vs 0.87–0.99 for ablation).
+
+🔁 **Takeaway:** giving interpretability its fairest shot — 20× the features, or a per-image oracle
+steering strength — **still does not give reliable, selective control.** Detecting ≠ controlling
+survives the stress test.
+
+Run dir (2026-07-09, kept): `experiments/runs/20260709T133850Z_interventions_grid` (144 cells + 3-seed
+`summary_m_sweep_bestcase.csv`). Code: `scripts/40_run_interventions.py` + `carve.eval.harness.run_steer_bestcase`,
+config-driven via `interventions.feature_set_sizes` / `interventions.steer_grid`. Ruler overlay also
+enlarged this day to 60–100% of the image on a tangential orbit (see `src/carve/data/artifacts.py`).
 
 ---
 

@@ -21,5 +21,5 @@ aggregate.py
         # (never memory), build the headline table; mean±std over seeds.
 """
 
-from .harness import RUNRECORD_COLUMNS, run_cell  # noqa: F401
+from .harness import RUNRECORD_COLUMNS, run_cell, run_steer_bestcase  # noqa: F401
 from .aggregate import benchmark_table, load_records  # noqa: F401
