@@ -32,7 +32,11 @@ saved. Nothing here is made up.
   mark) — and only by hurting selectivity. Detecting ≠ controlling. See **§5.3**.
 - ✅ **Confirmed grid-wide:** the pre-registered ρ×α sweep (varying correlation strength *and*
   artifact opacity) shows detection stays high and recovery stays ≈0 in *every* cell — see **§6**.
-- 🚧 **Not done yet:** one leftover baseline (CDEP) and finishing one health-check on the SAE.
+- 🔬 **We know WHY now:** the artifact's causal effect is essentially *one* activation direction
+  (rank ≈1), but the feature/CAV a tool picks to *detect* it is nearly orthogonal (|cos| ≈ 0.02–0.12)
+  to that causal direction — so it ablates the wrong vector. Detection ≠ control, literally. See **§7**.
+- 🚧 **Not done yet:** CDEP baseline (deferred — it is a *training-time* method, out of our
+  inference-time scope; noted as future work), and a leftover SAE-health check.
 
 ---
 
@@ -390,14 +394,58 @@ Figure `…rho_alpha_sweep/figures/rho_alpha_dissociation.png`. Run dir (2026-07
 
 ---
 
+## 7. Mechanism — WHY linear control fails (added 2026-07-10)
+
+§5–§6 establish that every method detects the artifact but can't control it (R ≈ 0). §7 asks *why*,
+and finds a clean geometric answer. At block ℓ=12 the artifact moves the activation by Δa =
+a(x_art) − a(x_clean) (per image, per token). We measure (a) the **effective rank** of Δa
+(participation ratio of its singular values) and (b) the **alignment** (|cos|) between the artifact's
+**causal direction** (top singular vector of Δa) and the **detection directions the tools actually
+ablate**: the SAE feature with the highest present/absent AUROC, and the CAV. Frozen-compliant width
+4096, 3 seeds.
+
+**Finding 1 — the causal effect is essentially rank-1.** Δa has participation ratio **1.1–1.4** (its
+top singular direction carries **84–94%** of the variance). The artifact is *not* smeared across many
+dimensions — it moves the activation along essentially one direction, so removing that one direction
+should suffice. (This refuted our initial "the effect is high-dimensional" guess.)
+
+**Finding 2 — but the detection direction is a DIFFERENT vector than the causal one.** The SAE feature
+that best *detects* the artifact (AUROC 0.89–0.99) is **nearly orthogonal** to the causal direction
+(|cos| = **0.05–0.12**); the CAV is essentially orthogonal (|cos| ≈ **0.02**). Even the *best-aligned*
+feature in the entire 4096-feature dictionary reaches only |cos| ≈ **0.63**.
+
+| artifact | eff. rank (top-dir var) | detection AUROC | \|cos(causal, SAE feat)\| | \|cos(causal, CAV)\| | best \|cos\| any feat |
+|---|---|---|---|---|---|
+| ruler | 1.18 (91%) | 0.895 | **0.12** | **0.02** | 0.63 |
+| arrow | 1.14 (94%) | 0.974 | **0.06** | **0.02** | 0.63 |
+| black_corner | 1.38 (85%) | 0.989 | **0.05** | **0.02** | 0.63 |
+
+🔬 **Mechanism:** "detection ≠ control" is literally true **at the level of vectors.** The artifact's
+causal effect is a single activation direction, but the direction a tool picks to *detect* the artifact
+is not that direction — so ablating the detection feature (or the CAV) removes the *wrong* direction and
+barely moves the decision (R ≈ 0). Detection asks "which direction best *separates* present/absent?";
+control needs "which direction *carries the effect*?" — and these are different vectors. This is exactly
+why erasing the artifact at the input (which removes the true causal component per image) recovers
+perfectly, while every linear feature-space method fails.
+
+Figure `…effect_dimensionality/figures/mechanism_detection_vs_causal_direction.png`. Run dir (2026-07-10,
+kept): `experiments/runs/20260709T231727Z_effect_dimensionality`. Code: `scripts/42_effect_dimensionality.py`.
+
+---
+
 ## Immediate next steps
 
 1. ✅ **Phase-7 ρ×α sweep — DONE** (§6): confirmatory grid at the frozen-compliant width 4096;
    dissociation holds in every (ρ,α) cell. `scripts/41_rho_alpha_sweep.py`.
-2. **CDEP** (task #12) — the last remaining baseline; add through the same `run_cell` interface.
-3. **Finish the SAE-health sweep** — `scripts/31_sae_health_sweep.py` got cut off (battery); would
-   confirm 4096 is the widest ≤15%-dead width (8192 unchecked). Not blocking.
-4. **Manuscript** — the experimental spine is complete; the remaining critical-path work is writing.
+2. ✅ **Mechanism — DONE** (§7): rank-1 causal direction vs. near-orthogonal detection direction.
+   `scripts/42_effect_dimensionality.py`.
+3. **Manuscript** — the experimental spine is complete (bias → detection≠control → fair-shot → grid-wide
+   → mechanism); the remaining critical-path work is writing. Initial draft in `docs/PAPER_DRAFT.md`.
+4. **CDEP** — DEFERRED as future work: it is a *training-time* explanation penalty, outside CARVE's
+   inference-time recovery framework; benchmarking it fairly needs a separate setup (note it in the
+   paper's Related Work / Limitations rather than rushing an unfair reimplementation).
+5. **SAE-health sweep** (`scripts/31_sae_health_sweep.py`, cut off) — would confirm 4096 is the widest
+   ≤15%-dead width (8192 unchecked). Not blocking.
 
 _Branches:_ Stage-6 + prereg on `phase6-baselines`
 (`b97d368`, `e8e1981`, `9c95270`, `0840de8`, `5d57d94`, + this docs commit).
