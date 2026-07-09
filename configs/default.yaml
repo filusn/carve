@@ -64,7 +64,8 @@ sae:
   kind: topk
   layer: 12                # MONET vision block ℓ the SAE is trained on (d=1024)
   tokens: patch            # train on patch+CLS tokens (spatial artifacts live in patches)
-  width: 4096              # FROZEN: health-selected (dead ≈9.6%, R² ≈0.99). 16384 is ~55% dead.
+  width: 4096              # PREREG §4 rule-compliant: widest width with ≤15% dead (4096: ~9.6% dead,
+                           # R²≈0.99). 16384 is ~22% dead (FAILS the ≤15% bar) → exploratory only.
   k: 32                    # FROZEN (PREREGISTRATION §4)
   feature_set_size_m: 1    # allow >1 if feature is polysemantic
   train:

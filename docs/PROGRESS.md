@@ -30,8 +30,9 @@ saved. Nothing here is made up.
   per-image *best-case* strength (an upper bound no real method beats), still doesn't recover the answer
   (control caps at ~0.1 for multi-feature ablation, ~0.3–0.8 for oracle steering, vs 1.0 for erasing the
   mark) — and only by hurting selectivity. Detecting ≠ controlling. See **§5.3**.
-- 🚧 **Not done yet:** the final big experiment sweep (varying artifact strength), one leftover
-  baseline (CDEP), and finishing one health-check on the SAE.
+- ✅ **Confirmed grid-wide:** the pre-registered ρ×α sweep (varying correlation strength *and*
+  artifact opacity) shows detection stays high and recovery stays ≈0 in *every* cell — see **§6**.
+- 🚧 **Not done yet:** one leftover baseline (CDEP) and finishing one health-check on the SAE.
 
 ---
 
@@ -344,15 +345,59 @@ by the realistic soft circular-optics vignette (≤2.8% cov), old hard disc kept
 
 ---
 
+## 6. Phase-7 final grid — the pre-registered ρ×α sweep (added 2026-07-10)
+
+Everything above sits at a single operating point (ρ=0.9, α=1.0). The **pre-registered confirmatory
+experiment** (PREREGISTRATION §1) is the ρ×α sweep: does "detection ≠ control" hold across the whole
+grid of spurious-correlation strength ρ and opacity α? **It does.**
+
+**Width note — resolves the prereg-compliance question.** PREREG §4 freezes the SAE width by a *rule*:
+the widest dictionary with **≤15% dead features** and R²≥0.98. The §1–§5 grids ran at width **16384**,
+which is **~22% dead — it FAILS that bar**. This confirmatory sweep therefore runs at the rule-compliant
+**width 4096** (dead **6.9–8.9%** across seeds, R²=0.990). So §5's 16384 numbers are now labelled
+**exploratory / robustness**; §6 (4096) is the frozen-compliant headline. (The dissociation is identical
+at both widths.)
+
+Setup: pre-registered grid ρ∈{0.5,0.7,0.9,1.0} × α∈{0.4,0.7,1.0} (12 cells) × 3 artifacts × 3 seeds.
+The SAE trains once per seed on clean activations (ρ/α-independent) and is reused across the grid. Per
+cell: SAE oracle-ablate **detection AUROC** + **recovery R**, plus the input-removal oracle (R≡1).
+
+**Detection stays high across the whole grid** (rising with opacity α):
+
+| artifact | α=0.4 | α=0.7 | α=1.0 |
+|---|---|---|---|
+| ruler | 0.78–0.85 | 0.84–0.87 | 0.88–0.89 |
+| arrow | 0.88–0.90 | 0.95–0.96 | 0.97–0.98 |
+| black_corner | 0.95–0.97 | 0.97–0.99 | 0.98–0.99 |
+
+**Recovery stays ≈0 in every one of the 12 cells** (SAE oracle-ablate R, 3-seed mean; input oracle
+= 1.00 in every cell):
+
+| artifact | recovery R across all (ρ,α) |
+|---|---|
+| ruler | **0.00** (exactly, every cell) |
+| arrow | **+0.005 … +0.021** |
+| black_corner | **−0.005 … +0.029** |
+
+🔁 **Confirmatory takeaway:** the dissociation is **grid-wide** — at *every* combination of correlation
+strength and opacity, the SAE feature detects the artifact (AUROC 0.78–0.99) but ablating it recovers
+essentially none of the effect (R ≈ 0), while erasing the mark recovers it perfectly (R = 1.0). The
+result is not an artifact of one operating point.
+
+Figure `…rho_alpha_sweep/figures/rho_alpha_dissociation.png`. Run dir (2026-07-10, kept):
+`experiments/runs/20260709T213446Z_rho_alpha_sweep` (216 cells, 3 seeds, width 4096). Code:
+`scripts/41_rho_alpha_sweep.py`.
+
+---
+
 ## Immediate next steps
 
-1. **Finish the SAE-health sweep** — `scripts/31_sae_health_sweep.py` got cut off (battery). It
-   checks dead-feature fraction, R², detection, and decoder stability for {4096, 16384,
-   16384+AuxK}, and whether the frozen width rule prefers a wider dictionary. Run it with
-   `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` when the box has no network.
-2. **Phase-7 final grid** — the ρ×α sweep (right now fixed at ρ=0.9/α=1.0), all methods, using the
-   **frozen** SAE config (width 4096, AuxK). PREREGISTRATION is frozen, so this is cleared to run.
-3. **CDEP** (task #12) — the last baseline, if the deadline allows.
+1. ✅ **Phase-7 ρ×α sweep — DONE** (§6): confirmatory grid at the frozen-compliant width 4096;
+   dissociation holds in every (ρ,α) cell. `scripts/41_rho_alpha_sweep.py`.
+2. **CDEP** (task #12) — the last remaining baseline; add through the same `run_cell` interface.
+3. **Finish the SAE-health sweep** — `scripts/31_sae_health_sweep.py` got cut off (battery); would
+   confirm 4096 is the widest ≤15%-dead width (8192 unchecked). Not blocking.
+4. **Manuscript** — the experimental spine is complete; the remaining critical-path work is writing.
 
 _Branches:_ Stage-6 + prereg on `phase6-baselines`
 (`b97d368`, `e8e1981`, `9c95270`, `0840de8`, `5d57d94`, + this docs commit).

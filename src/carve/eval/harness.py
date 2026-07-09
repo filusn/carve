@@ -75,7 +75,10 @@ def _finalize_record(
 
     if run_dir is not None:
         import pandas as pd
-        tag = f"s{seed}_{meta.get('artifact')}_{meta.get('selection')}_{meta.get('method')}"
+        # tag must include EVERY varying cell key or files collide (ρ×α sweeps reuse the same
+        # artifact/method at many rho/opacity, so rho+opacity are required for uniqueness).
+        tag = (f"s{seed}_{meta.get('artifact')}_r{meta.get('rho')}_a{meta.get('opacity')}"
+               f"_{meta.get('selection')}_{meta.get('method')}")
         pd.DataFrame({
             "f_art": f_art, "f_removed": f_removed,
             "f_feat_art": f_feat_art, "f_feat_clean": f_feat_clean,
