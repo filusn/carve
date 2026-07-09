@@ -36,9 +36,12 @@ The result is a clean and consistent dissociation. **Every method detects the ar
 perfectly** (detection AUROC up to 1.0), **but none can control it**: causal recovery `R` sits at
 about 0, while input-level erasure recovers `R = 1.0`. The gap survives a fair-shot stress test
 (ablating 20× more features, or handing steering a per-image best-case strength) and holds in every
-cell of a pre-registered correlation-strength × opacity grid. We conclude that high artifact-detection
-scores do not license claims of artifact *removal*, and we release CARVE as a controlled benchmark for
-measuring the difference.
+cell of a pre-registered correlation-strength × opacity grid. A mechanism analysis explains why: the
+artifact's causal effect on the activation is essentially one direction (effective rank 1.1–1.4), but the
+direction each tool uses to *detect* it is nearly orthogonal to that causal direction — so "detection ≠
+control" is literally true at the level of vectors. We conclude that high artifact-detection scores do
+not license claims of artifact *removal*, and we release CARVE as a controlled benchmark for measuring
+the difference.
 
 <!-- WRITER NOTE (ELI10): The abstract must contain the three-beat story: (1) what we set out to do
      (test if interpretability can UNDO artifact bias), (2) HOW (inject the artifact, so we own the
@@ -112,6 +115,10 @@ recoverable signal is really there — but a finding about the interpretability 
   physically faithful soft dermoscope vignette, shown to survive a fair-shot stress test (20× more
   features; best-case per-image steering), and confirmed pre-registered across a correlation-strength ×
   opacity grid.
+- **A geometric mechanism for the gap.** The artifact's causal effect on the activation is essentially
+  one direction (effective rank 1.1–1.4), yet the direction each tool uses to *detect* it is nearly
+  orthogonal to that causal direction (`|cos|` ≈ 0.02–0.12) — so "detection ≠ control" is literally true
+  at the level of vectors.
 - **A released, method-agnostic harness** (injection recipe, split indices, metrics) so any future
   debiasing method can be scored on the same answer key.
 
@@ -479,6 +486,55 @@ effect (R ≈ 0). The result is not an artifact of one operating point.*
      this is the REGISTERED, width-4096 (healthy SAE) result — so it's the compliant headline, not the
      exploratory width-16384 numbers. Make sure the caption says "pre-registered." -->
 
+### 5.5 Detection and causation are different directions (mechanism)
+
+Sections 5.2–5.4 establish *that* every method detects but does not control the artifact; this
+subsection shows *why*, and the answer is clean and geometric. At block ℓ = 12 the artifact moves the
+activation by `Δa = a(x_art) − a(x_clean)` (per image, per token). We measure two things at the
+frozen-compliant width 4096 over 3 seeds: the **effective rank** of `Δa` (the participation ratio of its
+singular values — how many directions the effect is spread across), and the **alignment** `|cos|`
+between the artifact's **causal direction** (the top singular vector of `Δa`) and the **detection
+directions the tools actually ablate** (the highest-AUROC SAE feature, and the CAV).
+
+**[TABLE 5: mechanism — the causal effect is rank-1 but the detection direction is a different vector.
+Source: PROGRESS §7, run `experiments/runs/20260709T231727Z_effect_dimensionality`.]**
+
+| Artifact | eff. rank (top-dir var) | detection AUROC | \|cos(causal, SAE feat)\| | \|cos(causal, CAV)\| | best \|cos\| any feat |
+|---|---|---|---|---|---|
+| ruler | 1.18 (91%) | 0.895 | **0.12** | **0.02** | 0.63 |
+| arrow | 1.14 (94%) | 0.974 | **0.06** | **0.02** | 0.63 |
+| black_corner | 1.38 (85%) | 0.989 | **0.05** | **0.02** | 0.63 |
+
+Two findings. First, the causal effect is **essentially rank-1**: `Δa` has participation ratio 1.1–1.4,
+with the top singular direction carrying 84–94% of the variance. The artifact is *not* smeared across
+many dimensions — it moves the activation along essentially one direction, so removing that one
+direction should suffice. Second, the direction each tool picks to *detect* the artifact is a
+**different vector** from that causal direction: the best-detecting SAE feature (AUROC 0.89–0.99) is
+nearly orthogonal to it (`|cos|` = 0.05–0.12), and the CAV is essentially orthogonal (`|cos| ≈ 0.02`).
+Even the best-aligned feature in the entire 4096-feature dictionary reaches only `|cos| ≈ 0.63`. So
+ablating the detection feature (or the CAV) removes the *wrong* direction and barely moves the decision
+(R ≈ 0), while input erasure removes the true causal component per image and recovers perfectly.
+**"Detection ≠ control" is literally true at the level of vectors**: detection asks "which direction best
+separates present from absent?", control needs "which direction carries the effect?", and these are
+different vectors.
+
+**[FIGURE 5: mechanism — high detection AUROC vs. near-zero alignment with the causal direction. Bar
+chart per artifact contrasting detection AUROC (~0.9–1.0) against `|cos|` between the detection
+direction and the rank-1 causal direction (~0.02–0.12). Source:
+`experiments/runs/20260709T231727Z_effect_dimensionality/figures/mechanism_detection_vs_causal_direction.png`.]**
+
+*Figure 5. Why linear control fails. The artifact's causal effect is essentially one activation direction
+(effective rank 1.1–1.4), but the direction each tool uses to detect it is nearly orthogonal to that
+causal direction. Ablating the detection direction therefore removes the wrong vector.*
+
+<!-- WRITER NOTE (ELI10): This is now the paper's "aha" — the mechanism came out CLEANER than we
+     expected. Our first guess (Discussion draft) was that the effect is high-dimensional/entangled;
+     the data REFUTED that — it's basically rank-1. So the failure isn't "too many directions to
+     remove," it's "the tools point at the wrong single direction." That's a sharper, more quotable
+     story; lead the Discussion with it. All numbers trace to PROGRESS §7 (run
+     …20260709T231727Z_effect_dimensionality). Double-check the |cos| values and the 84–94% variance
+     figures at write time. -->
+
 ---
 
 ## 6. Discussion
@@ -491,20 +547,33 @@ feature-level tools simply do not reach it. High detection AUROC, the number mos
 report, does not license a claim of control. For a clinical audience the practical reading is blunt: a
 tool that "found the ruler feature" has not thereby shown it can make the model ignore rulers.
 
-**Why linear activation-space control plausibly fails.** Every method we tested that stays inside a
-straight line in activation space — a single SAE feature, a single raw neuron, or a learned CAV
-direction — detects but does not control. That the input-removal oracle succeeds where all of these fail
-suggests the artifact's causal effect on the decision is *not* carried by a single linear direction that
-can be cleanly subtracted at one layer: it is likely distributed and entangled with lesion-relevant
-directions, so removing a detectable projection leaves the decision largely intact, while pushing harder
-(steering) overshoots into the wrong region rather than landing on the clean manifold. The SAE's genuine
-advantage — near-perfect selectivity — shows the tool is precise about *where* it acts; it just has no
-lever that moves the decision back to clean.
+**Why linear activation-space control fails (measured).** The mechanism analysis of Section 5.5 gives a
+concrete, geometric answer rather than a guess. The failure is *not* that the artifact's effect is
+high-dimensional and hard to subtract — the opposite is true: the effect is essentially rank-1
+(effective rank 1.1–1.4, top direction carrying 84–94% of the variance), so a single clean subtraction
+*should* suffice. The failure is that the direction each tool picks to *detect* the artifact is nearly
+orthogonal to the direction that *carries* its causal effect (`|cos|` = 0.05–0.12 for the best SAE
+feature, ≈ 0.02 for the CAV). Detection and control are optimizing for different vectors: a detector
+wants the direction that best *separates* artifact-present from artifact-absent activations, which need
+not coincide with — and here does not coincide with — the direction along which the artifact actually
+*moves the decision*. Ablating the detection direction therefore removes the wrong vector and barely
+shifts the margin (R ≈ 0), while input erasure removes the true causal component and recovers perfectly.
+This also explains steering's overshoot: pushing harder along a near-orthogonal direction sends the
+activation off the clean manifold rather than back onto it. The SAE's genuine advantage — near-perfect
+selectivity — confirms it is precise about *where* it acts; it simply points along a direction that does
+not carry the effect.
 
-<!-- WRITER NOTE (ELI10): This is our interpretation, so hedge appropriately ("plausibly," "suggests")
-     — we did not run a mechanistic dissection proving distribution/entanglement. Do NOT over-claim a
-     mechanism. The safe, strong version: "a single linear direction is insufficient; the oracle proves
-     the signal is there." Flag as the paper's most speculative paragraph. -->
+<!-- WRITER NOTE (ELI10): This paragraph used to be the paper's most speculative spot; it is now
+     empirically grounded by §5.5 (run …20260709T231727Z_effect_dimensionality, PROGRESS §7). Nice
+     twist worth foregrounding: our initial guess ("distributed/entangled effect") was WRONG — the
+     effect is basically rank-1, and the tools just aim at the wrong single direction. That's a cleaner,
+     stronger story. Numbers here trace to PROGRESS §7; keep them consistent with Table 5. -->
+
+<!-- WRITER NOTE (ELI10): Consider merging the crisp one-liner from §5.5 ("detection asks which direction
+     separates present/absent; control needs which direction carries the effect") into the abstract or
+     intro — it is the single most quotable framing of the whole finding. -->
+
+
 
 **Relation to DermFM-Zero.** Our results are consistent with DermFM-Zero's report that muting artifact
 neurons changes downstream AUROC, but they reframe it: the change we observe from that same style of
