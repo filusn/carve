@@ -24,8 +24,8 @@ saved. Nothing here is made up.
   about **0**. So detecting the artifact is easy; controlling it is not. Detecting ≠
   controlling.
 - 🔁 **Replicated on realistic marks:** the "detects but can't control" result also holds for a
-  **new artifact set** — real ruler + arrow photo overlays and a hard dermoscope-style black circle
-  (`black_corner`). See **§5** (originals in §1–§2 kept for comparison).
+  **new artifact set** — real ruler + arrow photo overlays and a realistic soft dermoscope-corner
+  vignette (`black_corner`). See **§5** (originals in §1–§2 kept for comparison).
 - 🛡️ **Survives a fair-shot stress test:** even switching off 20× more features, or handing steering a
   per-image *best-case* strength (an upper bound no real method beats), still doesn't recover the answer
   (control caps at ~0.1 for multi-feature ablation, ~0.3–0.8 for oracle steering, vs 1.0 for erasing the
@@ -220,28 +220,40 @@ results above for comparison. The new set:
 
 - **ruler** — a *real* dermoscopy-ruler photo (a PNG overlay) pasted on at a random spot, size, and angle.
 - **arrow** — a *real* annotation arrow pasted on, pointing at the lesion.
-- **black_corner** — a **hard circular cutoff**: everything outside a centred circle is turned solid
-  black with a sharp edge (no fade), mimicking a real dermoscope's round field-of-view. (The old
-  smooth vignette is still available under the name `dark_corner`.)
+- **black_corner** — a **realistic dermoscope field-of-view**: circular optics on a rectangular
+  sensor, so a *soft* vignette darkens only the corners that fall outside the large optical circle
+  (off-centre ⇒ 2 corners, centred ⇒ 4), with coverage capped at **≤2.8%** of the image.
 
 Same pipeline, same metrics, config-driven (`configs/default.yaml` → `artifacts.types`); driver
 `scripts/run_new_artifact_grid.sh`.
+
+> **black_corner redesign (2026-07-09).** The first version was a *hard inscribed-circle* cutoff that
+> blacked out ~21% of the image — an unrealistically blunt cue that saturated the bias (bias_gap 1.0).
+> Prompted by checking the training set (only **1.9%** of the 10,015 HAM10000 images carry any real
+> dermoscope vignette, and a *full* circle is essentially absent — **0.03%**), we replaced it with the
+> physically faithful **circular-optics-over-sensor** model above (soft, ≤2.8% coverage). The old hard
+> disc is kept for reference as `black_corner_circle`; the smooth gradient vignette is `dark_corner`.
+> §5.1–§5.3 below are the **re-run on this realistic version**: the zero-shot effect is far weaker
+> (§5.1), yet "detection ≠ control" still holds (§5.2–§5.3).
 
 ### 5.1 How each new mark bends the answer (Phase-0 gate, ρ=1, α=1, layer 12)
 
 | artifact | zero-shot `e_in` (median, CI95) | direction | induced-probe **bias_gap** |
 |---|---|---|---|
-| ruler | **+0.14** [+0.08, +0.25] | → **melanoma** (72% of images) | 0.19 |
+| ruler | **+0.18** [+0.09, +0.30] | → **melanoma** (68% of images) | 0.32 |
 | arrow | **+0.71** [+0.58, +0.83] | → **melanoma** (93%) | 0.68 |
-| black_corner | **+0.72** [+0.53, +0.87] | → **melanoma** (88%) | **1.00** |
+| black_corner | **+0.23** [+0.14, +0.32] | → **melanoma** (68%) | 0.87 |
 
-What changed vs. the old set:
-- **All three now push toward *melanoma*** (positive `e_in`). Note the flip: the *old synthetic*
-  ruler pushed toward benign (−0.51), but the *real* ruler photo pushes the other way (+0.14).
-- **The real ruler is a weak, subtle cue** (small effect, bias_gap only 0.19) — real rulers are thin
-  and sit off to the side, so the model leans on them far less than on the bold synthetic one.
-- **black_corner is a very strong cue** (bias_gap 1.00 — the model's call is basically decided by
-  whether the corners are black). A big, blunt, whole-image change is the easiest thing to latch onto.
+What we found:
+- **All three push toward *melanoma*** (positive `e_in`). (The *old synthetic* ruler in §1 pushed the
+  other way, toward benign −0.51; the *real* ruler photo flips it to +0.18.)
+- **The real ruler is a weak, subtle cue** (small effect, bias_gap 0.32) — real rulers are thin and
+  sit off to the side, so the model leans on them far less than on the bold synthetic one.
+- **The realistic black_corner is now only a *moderate* cue.** Making the vignette faithful
+  **collapsed its zero-shot effect from +0.72 (old blunt disc) to +0.23** — MONET's own call barely
+  moves. But a *trained probe* still exploits it heavily (bias_gap 0.87): a soft corner darkening is a
+  reliable, easily-detected tag, so a lazy classifier grabs it even though it shifts the raw decision
+  little. So the old disc's "total bias" was mostly an artifact of its bluntness.
 
 ### 5.2 Detecting vs. controlling — same benchmark, new marks
 
@@ -252,34 +264,35 @@ values = ruler / arrow / black_corner.
 | method | detection AUROC | **recovery R** (mean±std) | selectivity | off-target |
 |---|---|---|---|---|
 | **input-removal oracle** (ceiling) | — | **1.00 ± 0.00** | 1.00 | 0.00 |
-| **SAE oracle-ablate** (ours) | 0.83–1.00 | **≈0** (+.00 / +.00 / +.00) | 0.91–1.00 | 0.00 |
-| **raw neuron** (budget-matched) | 0.75–1.00 | **≈0** (+.00 / −.02 / +.02) | 0.44–0.50 | ~0–.02 |
-| **CAV** (Reveal2Revise) | 1.000 | **≈0, worse on black** (−.04 / +.02 / **−.16**) | 0.47–0.81 | ~0 |
-| **DermFM-Zero** top-5 (incumbent) | — | **erratic / harmful** (**−1.25** / −.39 / −.04) | 0.40–0.50 | **0.13** |
-| random raw (control) | — | ≈0 | ~0.49 | ~0 |
+| **SAE oracle-ablate** (ours) | 0.88–0.99 | **≈0** (+.00 / +.00 / +.03) | 0.87–0.99 | 0.00 |
+| **raw neuron** (budget-matched) | 0.82–0.95 | **≈0** (−.01 / −.01 / −.01) | 0.48–0.52 | ~0 |
+| **CAV** (Reveal2Revise) | 1.000 | **≈0** (−.05 / +.02 / +.05) | 0.52–0.69 | ~0–.03 |
+| **DermFM-Zero** top-5 (incumbent) | — | **erratic / harmful** (**−1.07** / −.39 / **−.92**) | 0.46–0.50 | **0.13** |
+| random raw (control) | — | ≈0 (+.00 / +.00 / +.00) | 0.27–0.35 | ~0 |
 
 **Headline: the same result holds.** Every interpretability tool **detects** the mark well (AUROC up
 to 1.0), but **none can undo it** (R ≈ 0), while simply erasing the mark from the image undoes it
-perfectly (R = 1.0). Detecting ≠ controlling — now confirmed on realistic photo overlays and a
-dermoscope-style black circle, not just hand-drawn marks.
+perfectly (R = 1.0). Detecting ≠ controlling — now confirmed on realistic photo overlays *and* a
+physically faithful soft dermoscope vignette, not just hand-drawn marks.
 
 Extra notes:
 - **Nudging the SAE feature (steering) doesn't help — it overshoots.** Turning the feature down harder
-  pushes the answer *past* clean into the wrong direction (e.g. ruler at the strongest setting:
-  R = **−2.7**; black_corner: R = **−0.8**). So neither switching the feature off nor nudging it
-  recovers the clean decision.
-- **CAV actively makes black_corner *worse*** (R = −0.16): a strong whole-image change drags the
-  learned direction, so the "fix" overcorrects.
-- **The real ruler is hard even to detect** (AUROC as low as 0.75–0.83, vs ~0.99 for the bold
-  synthetic one) — a weaker mark is both a weaker cause and a fainter signal.
-- **The SAE was healthy:** R² ≈ 0.99, ~22% dead features (width 16384, k=32), consistent across all 3 seeds.
+  pushes the answer *past* clean into the wrong direction (at the strongest setting c=16: ruler
+  R = **−3.4**, black_corner R = **−2.2**; arrow peaks at only +0.10 then falls to −0.38). So neither
+  switching the feature off nor nudging it recovers the clean decision.
+- **The realistic black_corner is no longer a special case.** On the old blunt disc CAV *worsened* it
+  (R = −0.16); on the soft version every straight-line method is back to R ≈ 0 (SAE +.03, CAV +.05,
+  raw −.01) — detectable (AUROC 0.95–1.0) but not controllable, exactly like ruler and arrow.
+- **The real ruler is the hardest to detect** (AUROC 0.82–0.88, vs 0.96–1.0 for arrow/black_corner) —
+  a weaker mark is both a weaker cause and a fainter signal.
+- **The SAE was healthy:** R² ≈ 0.991, ~22–23% dead features (width 16384, k=32), consistent across all 3 seeds.
 
-Figures: `experiments/runs/20260708T233117Z_baselines_grid/figures/` (`detection_vs_recovery.png`,
-`recovery_bars.png`, `selectivity_vs_offtarget.png`, `detection_bars.png`). Run dirs (2026-07-08, kept,
-nothing overwritten): Phase-0 `…224940Z_phase0_gate`, interventions `…225108Z_interventions_grid`,
-baselines `…233117Z_baselines_grid`. Code: commit `403377e` on `phase6-baselines` (the run dirs record
-`git_commit: nogit` because git isn't installed inside the run container). Width note: this grid uses
-the scripts' width-16384 setting to stay comparable to §2; the PREREGISTRATION-frozen width is 4096.
+Figures: `experiments/runs/20260709T195504Z_baselines_grid/figures/` (`detection_vs_recovery.png`,
+`recovery_bars.png`, `selectivity_vs_offtarget.png`, `detection_bars.png`). Run dirs (2026-07-09, kept,
+nothing overwritten): Phase-0 `…185640Z_phase0_gate`, interventions `…185808Z_interventions_grid`,
+baselines `…195504Z_baselines_grid`. Code: `phase6-baselines` (the run dirs record `git_commit: nogit`
+because git isn't installed inside the run container). Width note: this grid uses the scripts'
+width-16384 setting to stay comparable to §2; the PREREGISTRATION-frozen width is 4096.
 
 ### 5.3 Fair-shot stress test — more features? best-case steering? (added 2026-07-09)
 
@@ -299,11 +312,11 @@ and re-ran the new artifact set (ρ=0.9, α=1.0, width-16384, 3 seeds):
 |---|---|---|---|---|
 | arrow | +0.00 | +0.04 | **+0.12** ±0.06 | *0.99 → 0.91* |
 | ruler | +0.00 | +0.02 | **+0.07** ±0.01 | *0.87 → 0.82* |
-| black_corner | +0.00 | −0.03 | **−0.01** ±0.05 | *1.00 → 0.98* |
+| black_corner | +0.03 | +0.07 | **+0.14** ±0.05 | *0.95 → 0.92* |
 
-Switching off 20× as many features nudges recovery to **at most +0.12** (arrow) and does nothing for
-black_corner — still nowhere near the input-removal ceiling of **1.0** — while **selectivity erodes**
-(you start damaging clean images). More features ≠ control.
+Switching off 20× as many features nudges recovery to **at most +0.14** (black_corner) — still nowhere
+near the input-removal ceiling of **1.0** — while **selectivity erodes** (you start damaging clean
+images). More features ≠ control.
 
 **#2 — steering (recovery R):**
 
@@ -311,22 +324,23 @@ black_corner — still nowhere near the input-removal ceiling of **1.0** — whi
 |---|---|---|
 | arrow | peaks +0.10 (c≈1) → −0.38 (c=16) | **+0.78** ±0.09  (*sel 0.66*) |
 | ruler | −0.12 (c=0.5) → **−3.4** (c=16) | **+0.33** ±0.44  (*sel 0.54*) |
-| black_corner | +0.01 (c=0.5) → −0.78 (c=8) | **+0.29** ±0.32  (*sel 0.45*) |
+| black_corner | +0.01 (c=0.5) → **−2.2** (c=16) | **+0.50** ±0.21  (*sel 0.56*) |
 
 No single steering strength recovers the answer: the curve barely rises then **overshoots hard past
-clean into the wrong direction** (ruler → −3.4). Even the **best-case per-image oracle** strength — an
-upper bound no real method can reach — recovers only **+0.78 (arrow) / +0.33 (ruler) / +0.29
-(black_corner)**, never the full 1.0, is **unreliable across seeds** (ruler ±0.44), and gets there only
-by **wrecking selectivity** (0.45–0.66 vs 0.87–0.99 for ablation).
+clean into the wrong direction** (ruler → −3.4, black_corner → −2.2). Even the **best-case per-image
+oracle** strength — an upper bound no real method can reach — recovers only **+0.78 (arrow) / +0.50
+(black_corner) / +0.33 (ruler)**, never the full 1.0, is **unreliable across seeds** (ruler ±0.44), and
+gets there only by **wrecking selectivity** (0.54–0.66 vs 0.87–0.99 for ablation).
 
 🔁 **Takeaway:** giving interpretability its fairest shot — 20× the features, or a per-image oracle
 steering strength — **still does not give reliable, selective control.** Detecting ≠ controlling
-survives the stress test.
+survives the stress test, now on the realistic soft black_corner too.
 
-Run dir (2026-07-09, kept): `experiments/runs/20260709T133850Z_interventions_grid` (144 cells + 3-seed
-`summary_m_sweep_bestcase.csv`). Code: `scripts/40_run_interventions.py` + `carve.eval.harness.run_steer_bestcase`,
-config-driven via `interventions.feature_set_sizes` / `interventions.steer_grid`. Ruler overlay also
-enlarged this day to 60–100% of the image on a tangential orbit (see `src/carve/data/artifacts.py`).
+Run dir (2026-07-09, kept): `experiments/runs/20260709T185808Z_interventions_grid`. Code:
+`scripts/40_run_interventions.py` + `carve.eval.harness.run_steer_bestcase`, config-driven via
+`interventions.feature_set_sizes` / `interventions.steer_grid`. Same-day artifact work (see
+`src/carve/data/artifacts.py`): ruler enlarged to 60–100% on a tangential orbit; black_corner replaced
+by the realistic soft circular-optics vignette (≤2.8% cov), old hard disc kept as `black_corner_circle`.
 
 ---
 

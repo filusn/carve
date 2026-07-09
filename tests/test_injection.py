@@ -112,10 +112,26 @@ def test_default_kinds_are_real_overlays():
     assert set(ARTIFACT_KINDS).isdisjoint(LEGACY_ARTIFACT_KINDS)
 
 
-def test_black_corner_is_hard_circle():
-    # black_corner is a dermoscope-style HARD circular cutoff, not a smooth vignette:
-    # centre visible (mask==0), corners black (mask==1), and the mask is strictly binary.
-    _, mask = inject(_img(64, 64), "black_corner", 0.8, np.random.default_rng(0))
+def test_black_corner_is_realistic_dermoscope_fov():
+    # black_corner models a REAL dermoscope: circular optics on a rectangular sensor, so the
+    # skin fills almost the whole frame and black appears only where the sensor corners poke
+    # outside the large optical circle (2 far corners when off-centre, all 4 when centred).
+    # Low coverage (soft-vignette only, capped at ≤~3%, not the legacy ~21% inscribed disc),
+    # so assert the geometric invariants over seeds rather than exact darkness.
+    for seed in range(12):
+        _, mask = inject(_img(96, 96), "black_corner", 1.0, np.random.default_rng(seed))
+        assert mask[48, 48] == 0.0                       # centre: inside the FOV => skin visible
+        assert mask.max() > 0.0                          # something is covered (mask.sum() > 0)
+        corners = [mask[0, 0], mask[0, -1], mask[-1, 0], mask[-1, -1]]
+        assert max(corners) > 0.0                        # the corners carry the coverage
+        assert mask[48, 48] < max(corners)               # corners darker than the centre
+        assert 0.0 < mask.mean() < 0.15                  # low coverage, not the old ~21% disc
+
+
+def test_black_corner_circle_is_hard_disc():
+    # the legacy inscribed-circle cutoff is preserved under black_corner_circle:
+    # centre visible (mask==0), corners black (mask==1), strictly binary sharp edge.
+    _, mask = inject(_img(64, 64), "black_corner_circle", 0.8, np.random.default_rng(0))
     assert mask[32, 32] == 0.0            # centre pixel: inside the circle => fully visible
     assert mask[0, 0] == 1.0              # corner pixel: outside the circle => fully black
     assert set(np.unique(mask)).issubset({0.0, 1.0})  # binary: sharp edge, no gradient

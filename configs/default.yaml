@@ -52,7 +52,7 @@ model:
 artifacts:
   # DEFAULT = real photographic overlays (rulers m*.png + arrows a*.png), bundled under
   # src/carve/data/overlays/ and composited with their own alpha. overlay_both layers both.
-  types: [ruler, arrow, black_corner]         # NEW set: real ruler+arrow + hard-circle vignette. also available: overlay_both
+  types: [ruler, arrow, black_corner]         # NEW set: real ruler+arrow + soft circular-optics vignette (≤3% cov). also: overlay_both, black_corner_circle (legacy hard disc)
   legacy_types: [ruler_synthetic, marker_ink, dark_corner]  # opt-in synthetic marks (old set)
   opacity: [0.4, 0.7, 1.0]
   rho: [0.5, 0.7, 0.9, 1.0]                  # spurious-correlation strength

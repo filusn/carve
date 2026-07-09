@@ -25,8 +25,10 @@ Two families of artifacts:
     own alpha. ``overlay_both`` layers a ruler + an arrow. These are the pipeline default.
   • synthetic marks (LEGACY, opt-in): ``ruler_synthetic`` (procedural rule+ticks),
     ``marker_ink`` (pen dot), ``dark_corner`` (original smooth vignette), ``black_corner``
-    (hard circular cutoff mimicking a real dermoscope's circular field-of-view) — the
-    original numpy-drawn set.
+    (a realistic dermoscope field-of-view — circular optics on a rectangular sensor: skin
+    fills almost the whole frame, a soft-vignette darkening appears only where the corners
+    fall outside the large optical circle, coverage capped at ≤~3%). ``black_corner_circle``
+    keeps the original hard inscribed-circle cutoff for reference — the original numpy set.
 """
 from __future__ import annotations
 
@@ -128,14 +130,92 @@ def _dark_corner(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, 
 
 
 def _black_corner(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
-    """A dermoscope's circular field-of-view: a HARD circular cutoff.
+    """A realistic dermoscope field-of-view: circular optics clipped by the sensor corners.
+
+    Physically faithful model: a dermoscope's CIRCULAR optics project onto the RECTANGULAR
+    sensor, so the visible field is a LARGE circle (radius on the order of the image HALF-
+    DIAGONAL) and black appears only where the rectangle's corners poke OUTSIDE that circle —
+    the skin fills almost the whole frame. (Contrast the legacy ``black_corner_circle``, an
+    inscribed disc of radius ``min(h,w)/2`` that blacks out ~21%: far too aggressive.)
+
+    SOFT variant only (chosen as the experiment default): black never reaches the corners as
+    a crisp cutoff — instead a thin darkening vignette gradient fades in just inside the optical
+    circle's edge, so the effect is subtle. Visible coverage is capped low (≤ ~3% of the image).
+    All parameters are drawn from ``rng`` for per-image variety (deterministic per seed):
+      • OFF-CENTRE circle: the centre is jittered. A dominant one-axis shift (drawn a good
+        fraction of the time) pushes only the TWO far corners outside the circle — the very
+        common 2-corner case; a near-centred circle clips all FOUR. Both occur naturally.
+      • mild ELLIPTICITY + small ROTATION: the circle is a gentle ellipse on a slightly
+        rotated sensor, so the four corner cut-offs are not identical (angles distorted).
+      • ``radius`` is BINARY-SEARCHED per image so the visibly-dark area (mask > 0.5) matches a
+        target drawn in [1.0%, 2.8%] — a hard cap on coverage (bigger circle ⇒ smaller corner
+        caps ⇒ less black, so coverage is monotone in radius and the search is well-posed).
+      • ``ramp`` / ``dark`` set the softness: darkening fades over a thin band and tops out at
+        ``dark`` (< 1), so even the deepest corner is a soft grey-black, not a hard cutoff.
+    ``mask`` ∈ [0,1]; ``mask.sum() > 0`` is guaranteed (guard blacks the farthest corner if a
+    draw clips nothing). The legacy hard inscribed disc is kept as ``black_corner_circle``.
+    """
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    half_diag = 0.5 * math.hypot(h, w)
+    # off-centre optics: a good fraction of the time shift dominantly along ONE axis so only
+    # the two FAR corners clip (the common 2-corner case); otherwise stay near-centred (4).
+    if rng.random() < 0.55:
+        big = float(rng.uniform(0.08, 0.18))          # dominant offset along one axis
+        small = float(rng.uniform(-0.04, 0.04))       # slight jitter on the other
+        if rng.random() < 0.5:
+            ox, oy = big * rng.choice([-1.0, 1.0]), small
+        else:
+            ox, oy = small, big * rng.choice([-1.0, 1.0])
+    else:
+        ox = float(rng.uniform(-0.05, 0.05))
+        oy = float(rng.uniform(-0.05, 0.05))
+    cx = (w - 1) / 2.0 + ox * w
+    cy = (h - 1) / 2.0 + oy * h
+    # mild ellipticity (circle → gentle ellipse) and a small sensor rotation
+    ex = float(rng.uniform(0.94, 1.06))
+    ey = float(rng.uniform(0.94, 1.06))
+    theta = math.radians(float(rng.uniform(-8.0, 8.0)))
+    ct, st = math.cos(theta), math.sin(theta)
+    x0, y0 = xx - cx, yy - cy
+    xr = x0 * ct + y0 * st
+    yr = -x0 * st + y0 * ct
+    # SOFT vignette: a thin darkening gradient just inside the circle edge, topping out at dark<1
+    ramp = float(rng.uniform(0.06, 0.12))
+    dark = float(rng.uniform(0.62, 0.90))
+    target_cov = float(rng.uniform(0.010, 0.028))     # capped visibly-dark fraction (mask > 0.5)
+
+    def mask_at(rfrac: float) -> np.ndarray:
+        rx, ry = rfrac * half_diag * ex, rfrac * half_diag * ey
+        # normalized elliptical distance: D<1 inside the optical circle (skin), D>1 outside
+        D = np.sqrt((xr / (rx + 1e-6)) ** 2 + (yr / (ry + 1e-6)) ** 2)
+        return (np.clip((D - (1.0 - ramp)) / ramp, 0.0, 1.0) * dark).astype(np.float32)
+
+    # binary-search the circle radius (in half-diagonal units) so mask>0.5 covers target_cov
+    lo, hi = 0.80, 1.12
+    for _ in range(22):
+        mid = 0.5 * (lo + hi)
+        if float((mask_at(mid) > 0.5).mean()) > target_cov:
+            lo = mid                       # too much black ⇒ enlarge the circle
+        else:
+            hi = mid
+    mask = mask_at(0.5 * (lo + hi))
+    if mask.sum() == 0:           # guard: nothing clipped — black the farthest corner
+        corners = [(0, 0), (0, w - 1), (h - 1, 0), (h - 1, w - 1)]
+        fy, fx = max(corners, key=lambda p: (p[0] - cy) ** 2 + (p[1] - cx) ** 2)
+        mask[fy, fx] = 1.0
+    color = np.zeros(3, np.float32)  # black outside the optical field of view
+    return mask, color
+
+
+def _black_corner_circle(h: int, w: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """LEGACY dermoscope FOV: a HARD inscribed-circle cutoff (blacks out ~21%).
 
     Inside a centred circle the skin is fully visible (mask=0); outside it is solid black
     (mask=1) with a sharp edge — no gradient. The circle is the inscribed circle,
     ``min(h, w) / 2`` (so it touches the shorter-side edges and the four corners are black),
-    with a small deterministic radius/centre jitter from ``rng`` so it varies per image while
-    staying a hard circle. mask is binary in {0.0, 1.0}; corners are always covered so
-    ``mask.sum() > 0`` for any radius ≤ the inscribed circle.
+    with a small deterministic radius/centre jitter from ``rng``. mask is binary in
+    {0.0, 1.0}; corners are always covered so ``mask.sum() > 0``. Superseded by
+    ``_black_corner`` (realistic rounded frame); kept for reference/back-compat.
     """
     yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
     # subtle centre jitter: a few percent of the image, deterministic in rng
@@ -278,6 +358,7 @@ _BUILDERS = {
     "marker_ink": _marker_ink,
     "dark_corner": _dark_corner,
     "black_corner": _black_corner,
+    "black_corner_circle": _black_corner_circle,  # legacy hard inscribed-circle cutoff
 }
 # every registered kind (real defaults + composite + synthetic legacy)
 ALL_ARTIFACT_KINDS = list(_BUILDERS)
