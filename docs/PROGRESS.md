@@ -23,6 +23,9 @@ saved. Nothing here is made up.
   **undo** the artifact's effect. "Recovery" — how much of the effect gets removed — sits at
   about **0**. So detecting the artifact is easy; controlling it is not. Detecting ≠
   controlling.
+- 🔁 **Replicated on realistic marks:** the "detects but can't control" result also holds for a
+  **new artifact set** — real ruler + arrow photo overlays and a hard dermoscope-style black circle
+  (`black_corner`). See **§5** (originals in §1–§2 kept for comparison).
 - 🚧 **Not done yet:** the final big experiment sweep (varying artifact strength), one leftover
   baseline (CDEP), and finishing one health-check on the SAE.
 
@@ -202,6 +205,77 @@ ruler (−.03±.01) and marker (+.01±.03)**, and only **+0.17±.02 on dark_corn
 just like the SAE feature and the raw neuron, **detects but does not selectively control** the
 artifact. The small dark-corner recovery fits the pattern — a slow, whole-image change is the most
 straight-line-friendly of the three — and it's still far from the 1.0 ceiling.
+
+---
+
+## 5. New artifact set — real ruler + arrow + black_corner (added 2026-07-09)
+
+Everything in §1–§2 used *hand-drawn* fake marks (a synthetic ruler, an ink dot, a smooth dark
+vignette). We re-ran the **same tests** on a **new, more realistic set of marks**, and kept the old
+results above for comparison. The new set:
+
+- **ruler** — a *real* dermoscopy-ruler photo (a PNG overlay) pasted on at a random spot, size, and angle.
+- **arrow** — a *real* annotation arrow pasted on, pointing at the lesion.
+- **black_corner** — a **hard circular cutoff**: everything outside a centred circle is turned solid
+  black with a sharp edge (no fade), mimicking a real dermoscope's round field-of-view. (The old
+  smooth vignette is still available under the name `dark_corner`.)
+
+Same pipeline, same metrics, config-driven (`configs/default.yaml` → `artifacts.types`); driver
+`scripts/run_new_artifact_grid.sh`.
+
+### 5.1 How each new mark bends the answer (Phase-0 gate, ρ=1, α=1, layer 12)
+
+| artifact | zero-shot `e_in` (median, CI95) | direction | induced-probe **bias_gap** |
+|---|---|---|---|
+| ruler | **+0.14** [+0.08, +0.25] | → **melanoma** (72% of images) | 0.19 |
+| arrow | **+0.71** [+0.58, +0.83] | → **melanoma** (93%) | 0.68 |
+| black_corner | **+0.72** [+0.53, +0.87] | → **melanoma** (88%) | **1.00** |
+
+What changed vs. the old set:
+- **All three now push toward *melanoma*** (positive `e_in`). Note the flip: the *old synthetic*
+  ruler pushed toward benign (−0.51), but the *real* ruler photo pushes the other way (+0.14).
+- **The real ruler is a weak, subtle cue** (small effect, bias_gap only 0.19) — real rulers are thin
+  and sit off to the side, so the model leans on them far less than on the bold synthetic one.
+- **black_corner is a very strong cue** (bias_gap 1.00 — the model's call is basically decided by
+  whether the corners are black). A big, blunt, whole-image change is the easiest thing to latch onto.
+
+### 5.2 Detecting vs. controlling — same benchmark, new marks
+
+Setup as in §2 (ρ=0.9, α=1.0, layer 12, width-16384 SAE, 250 eval images, 3 seeds, same images/splits
+for every method). `R` = recovery (1 = fully undoes the mark's effect, 0 = does nothing). The three R
+values = ruler / arrow / black_corner.
+
+| method | detection AUROC | **recovery R** (mean±std) | selectivity | off-target |
+|---|---|---|---|---|
+| **input-removal oracle** (ceiling) | — | **1.00 ± 0.00** | 1.00 | 0.00 |
+| **SAE oracle-ablate** (ours) | 0.83–1.00 | **≈0** (+.00 / +.00 / +.00) | 0.91–1.00 | 0.00 |
+| **raw neuron** (budget-matched) | 0.75–1.00 | **≈0** (+.00 / −.02 / +.02) | 0.44–0.50 | ~0–.02 |
+| **CAV** (Reveal2Revise) | 1.000 | **≈0, worse on black** (−.04 / +.02 / **−.16**) | 0.47–0.81 | ~0 |
+| **DermFM-Zero** top-5 (incumbent) | — | **erratic / harmful** (**−1.25** / −.39 / −.04) | 0.40–0.50 | **0.13** |
+| random raw (control) | — | ≈0 | ~0.49 | ~0 |
+
+**Headline: the same result holds.** Every interpretability tool **detects** the mark well (AUROC up
+to 1.0), but **none can undo it** (R ≈ 0), while simply erasing the mark from the image undoes it
+perfectly (R = 1.0). Detecting ≠ controlling — now confirmed on realistic photo overlays and a
+dermoscope-style black circle, not just hand-drawn marks.
+
+Extra notes:
+- **Nudging the SAE feature (steering) doesn't help — it overshoots.** Turning the feature down harder
+  pushes the answer *past* clean into the wrong direction (e.g. ruler at the strongest setting:
+  R = **−2.7**; black_corner: R = **−0.8**). So neither switching the feature off nor nudging it
+  recovers the clean decision.
+- **CAV actively makes black_corner *worse*** (R = −0.16): a strong whole-image change drags the
+  learned direction, so the "fix" overcorrects.
+- **The real ruler is hard even to detect** (AUROC as low as 0.75–0.83, vs ~0.99 for the bold
+  synthetic one) — a weaker mark is both a weaker cause and a fainter signal.
+- **The SAE was healthy:** R² ≈ 0.99, ~22% dead features (width 16384, k=32), consistent across all 3 seeds.
+
+Figures: `experiments/runs/20260708T233117Z_baselines_grid/figures/` (`detection_vs_recovery.png`,
+`recovery_bars.png`, `selectivity_vs_offtarget.png`, `detection_bars.png`). Run dirs (2026-07-08, kept,
+nothing overwritten): Phase-0 `…224940Z_phase0_gate`, interventions `…225108Z_interventions_grid`,
+baselines `…233117Z_baselines_grid`. Code: commit `403377e` on `phase6-baselines` (the run dirs record
+`git_commit: nogit` because git isn't installed inside the run container). Width note: this grid uses
+the scripts' width-16384 setting to stay comparable to §2; the PREREGISTRATION-frozen width is 4096.
 
 ---
 
