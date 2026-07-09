@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from carve.data.artifacts import ARTIFACT_KINDS, inject  # noqa: E402
+from carve.data.artifacts import inject  # noqa: E402
 from carve.data.datasets import make_splits  # noqa: E402
 from carve.data.isic import load_isic_binary  # noqa: E402
 from carve.metrics.causal import bias_gap, input_effect  # noqa: E402
@@ -88,6 +88,7 @@ def main() -> None:
     _check_env()
 
     cfg = load_config(str(Path(__file__).resolve().parents[1] / "configs" / "default.yaml"))
+    ARTIFACTS = list(cfg.artifacts.types)   # config-driven (was artifacts.ARTIFACT_KINDS); arbitrary artifact list
     seed = int(cfg.get("seed", 0))
     set_seed(seed)
     run = new_run_dir(cfg.paths.runs_dir, "phase0_gate", cfg, seed)
@@ -122,7 +123,7 @@ def main() -> None:
     bg_labels = ds.labels[bg_idx]
     f_zs_clean = f_decision(None, enc, zs_clean)        # zero-shot clean margins (kind-agnostic)
 
-    for kind in ARTIFACT_KINDS:
+    for kind in ARTIFACTS:
         entry = {}
 
         # ---- ZERO-SHOT arm: input-level effect e_in on held-out eval images -------------
