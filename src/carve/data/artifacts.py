@@ -181,35 +181,42 @@ def _placed_layer(overlay: Image.Image, h: int, w: int, px: int, py: int) -> Ima
 
 
 def _ruler_layer(h: int, w: int, rng: np.random.Generator) -> Image.Image:
-    """A dermoscopy ruler overlay, resized/rotated/positioned near an edge (avoids dead-center).
+    """A dermoscopy ruler overlay: sized 60–100% of the image's longer side, placed on an
+    orbit around the centre and oriented ~tangentially so it *revolves around* (and never
+    crosses through) the central lesion. It may hang partly off-canvas, as real rulers do.
     Adapted from projects/masks-rulers MedicalOverlayTransform, RNG-driven for determinism."""
     tpl = _templates("ruler")
     ruler = tpl[int(rng.integers(len(tpl)))]
     longer = max(h, w)
-    target = max(1, int(longer * float(rng.uniform(0.4, 0.8))))
+    # ruler spans 60–100% of the image's longer side (was 0.4–0.8; too small/subtle per image)
+    target = max(1, int(longer * float(rng.uniform(0.6, 1.0))))
     rw, rh = ruler.size
     if rw >= rh:
         new_w, new_h = target, max(1, round(rh * target / rw))
     else:
         new_h, new_w = target, max(1, round(rw * target / rh))
+    # Position the ruler on an orbit at angle theta around the image centre, and rotate it so
+    # its long axis is ~tangent to that radius (perpendicular to the spoke). A tangential ruler
+    # sitting at radius >= the central disk keeps its whole span out of the middle — so it wraps
+    # around the lesion instead of covering it. Templates are horizontal, so tangent = theta+90°.
+    theta = float(rng.uniform(0.0, 2.0 * math.pi))
+    # Orient the (horizontal) ruler tangent to the radius at angle theta. Image arrays are
+    # y-DOWN, so PIL's counter-clockwise rotate is clockwise in array space: the tangent angle
+    # is -(theta+90), NOT +(theta+90). (The + form is only tangential at theta=0/90 and becomes
+    # radial — pointing straight at the centre — at theta=45/135, which pulled diagonal rulers
+    # into the lesion.) Small ±10° jitter keeps it near-tangent without aiming inward.
+    tangent_deg = -(math.degrees(theta) + 90.0) + float(rng.uniform(-10.0, 10.0))
     over = ruler.resize((new_w, new_h), Image.LANCZOS).rotate(
-        float(rng.uniform(0, 360)), expand=True, resample=Image.BICUBIC, fillcolor=(0, 0, 0, 0)
+        tangent_deg, expand=True, resample=Image.BICUBIC, fillcolor=(0, 0, 0, 0)
     )
     ow, oh = over.size
-    center = (w / 2.0, h / 2.0)
-    avoid_r = 0.4 * min(h, w) / 2.0  # keep the ruler out of the central 40%-diameter disk
-    lo_x, hi_x = -ow // 3, w - (2 * ow) // 3
-    lo_y, hi_y = -oh // 3, h - (2 * oh) // 3
-    lo_x, hi_x = min(lo_x, hi_x), max(lo_x, hi_x)
-    lo_y, hi_y = min(lo_y, hi_y), max(lo_y, hi_y)
-    px = py = 0
-    for _ in range(100):
-        px = int(rng.integers(lo_x, hi_x + 1))
-        py = int(rng.integers(lo_y, hi_y + 1))
-        cx, cy = px + ow / 2.0, py + oh / 2.0
-        if (cx - center[0]) ** 2 + (cy - center[1]) ** 2 > avoid_r ** 2:
-            break
-    return _placed_layer(over, h, w, px, py)
+    # Orbit radius of the ruler's midpoint. Now that placement is truly tangential the ruler
+    # stays ~radius·cos(jitter) from the centre for every theta, so 0.40–0.48·min(H,W) keeps it
+    # clear of even a large lesion while its midpoint stays near the edge (hangs ~1/3 off).
+    radius = float(rng.uniform(0.40, 0.48)) * min(h, w)
+    cx = w / 2.0 + radius * math.cos(theta)
+    cy = h / 2.0 + radius * math.sin(theta)
+    return _placed_layer(over, h, w, round(cx - ow / 2.0), round(cy - oh / 2.0))
 
 
 def _arrow_layer(h: int, w: int, rng: np.random.Generator) -> Image.Image:
