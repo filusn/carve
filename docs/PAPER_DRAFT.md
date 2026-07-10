@@ -198,6 +198,8 @@ signal. Crucially, at *evaluation* we do not rely on any correlation: we paste t
 **every** clean eval image and compare it against its own clean twin, so recovery is measured
 per-image.
 
+![Injected artifacts (ruler / arrow / soft black_corner) on ISIC images, clean vs. injected](figures/artifacts.png)
+
 **[FIGURE 1: injected-artifact examples montage — dermoscopy images shown clean vs. with injected
 ruler, arrow, and black_corner (soft dermoscope vignette) overlays. Source:
 `experiments/overlay_examples/verification_new_set.png` / `contact_sheet.png`.]**
@@ -370,6 +372,8 @@ artifact's effect, 0 = does nothing). The three R values below are ruler / arrow
 | DermFM-Zero top-5 (incumbent) | — | **erratic / harmful** (−1.07 / −.39 / −.92) | 0.46–0.50 | **0.13** |
 | random raw (control) | — | ≈0 (+.00 / +.00 / +.00) | 0.27–0.35 | ~0 |
 
+![Detection ≠ control: every method sits near recovery R≈0 across the whole detection-AUROC range](figures/detection_vs_recovery.png)
+
 **[FIGURE 2: "Detection ≠ control" scatter — detection AUROC (x) vs. recovery R (y) for every method;
 all points cluster at high AUROC / R≈0 except the input-removal oracle at R=1. Source:
 `experiments/runs/20260709T195504Z_baselines_grid/figures/detection_vs_recovery.png`.]**
@@ -473,6 +477,8 @@ Recovery stays ≈ 0 in every one of the 12 cells (SAE oracle-ablate R, 3-seed m
 1.00 in every cell): ruler exactly 0.00 in every cell; arrow +0.005…+0.021; black_corner
 −0.005…+0.029.
 
+![ρ×α grid: detection stays high and recovery stays ≈0 in every cell](figures/rho_alpha_dissociation.png)
+
 **[FIGURE 3: ρ×α dissociation heatmap — detection AUROC vs. recovery R across the grid; detection high
 everywhere, recovery ≈0 everywhere. Source:
 `experiments/runs/20260709T213446Z_rho_alpha_sweep/figures/rho_alpha_dissociation.png`.]**
@@ -517,6 +523,8 @@ ablating the detection feature (or the CAV) removes the *wrong* direction and ba
 **"Detection ≠ control" is literally true at the level of vectors**: detection asks "which direction best
 separates present from absent?", control needs "which direction carries the effect?", and these are
 different vectors.
+
+![Mechanism: high detection AUROC vs. near-zero |cos| between the detection feature/CAV and the rank-1 causal direction](figures/mechanism.png)
 
 **[FIGURE 5: mechanism — high detection AUROC vs. near-zero alignment with the causal direction. Bar
 chart per artifact contrasting detection AUROC (~0.9–1.0) against `|cos|` between the detection
