@@ -473,13 +473,20 @@ Figure `…layer_robustness/figures/layer_robustness.png`. Run dir (2026-07-10):
    dissociation holds in every (ρ,α) cell. `scripts/41_rho_alpha_sweep.py`.
 2. ✅ **Mechanism — DONE** (§7): rank-1 causal direction vs. near-orthogonal detection direction.
    `scripts/42_effect_dimensionality.py`.
-3. **Manuscript** — the experimental spine is complete (bias → detection≠control → fair-shot → grid-wide
-   → mechanism); the remaining critical-path work is writing. Initial draft in `docs/PAPER_DRAFT.md`.
-4. **CDEP** — DEFERRED as future work: it is a *training-time* explanation penalty, outside CARVE's
+3. ✅ **Layer robustness — DONE** (§8): dissociation + mechanism hold across blocks {6,8,10,12}.
+   `scripts/43_layer_robustness.py`.
+4. ✅ **SAE-health / width — settled**: direct sweep confirms 4096 is the widest ≤15%-dead width
+   (4096=8.7%, 8192=18.1%, 16384=23.2%). The prereg "widest ≤15%-dead" rule selects 4096 (see §6).
+5. ✅ **Paper figures — DONE**: `docs/figures/` (committed) + embedded in the draft.
+6. **Manuscript** — the experimental spine is complete (bias → detection≠control → fair-shot → grid-wide
+   → mechanism → layer-robust); remaining critical-path work is writing. Draft in `docs/PAPER_DRAFT.md`.
+7. **CDEP** — DEFERRED as future work: it is a *training-time* explanation penalty, outside CARVE's
    inference-time recovery framework; benchmarking it fairly needs a separate setup (note it in the
    paper's Related Work / Limitations rather than rushing an unfair reimplementation).
-5. **SAE-health sweep** (`scripts/31_sae_health_sweep.py`, cut off) — would confirm 4096 is the widest
-   ≤15%-dead width (8192 unchecked). Not blocking.
+8. **Generality arm (2nd model)** — DEFERRED / blocked: `load_encoder` for CLIP ViT-B/16 is not wired
+   (`raise NotImplementedError`), the ViT-Prisma pretrained-SAE loader is a stub needing `vit_prisma`
+   + `cfg.sae.pretrained`, and the offline HF cache has MONET only (no CLIP-B16 / Prisma weights). Not
+   runnable offline; the single biggest future strengthener once weights + wiring are available.
 
 _Branches:_ Stage-6 + prereg on `phase6-baselines`
 (`b97d368`, `e8e1981`, `9c95270`, `0840de8`, `5d57d94`, + this docs commit).
