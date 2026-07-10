@@ -360,7 +360,9 @@ the widest dictionary with **≤15% dead features** and R²≥0.98. The §1–§
 which is **~22% dead — it FAILS that bar**. This confirmatory sweep therefore runs at the rule-compliant
 **width 4096** (dead **6.9–8.9%** across seeds, R²=0.990). So §5's 16384 numbers are now labelled
 **exploratory / robustness**; §6 (4096) is the frozen-compliant headline. (The dissociation is identical
-at both widths.)
+at both widths.) A direct width sweep at the grid config (AuxK-on, k=32, 3000 steps) confirms 4096 is
+the *widest* ≤15%-dead width — dead-feature fraction **4096 → 8.7%, 8192 → 18.1%, 16384 → 23.2%** (only
+4096 clears the bar), so the frozen "widest ≤15%-dead" rule selects 4096 unambiguously.
 
 Setup: pre-registered grid ρ∈{0.5,0.7,0.9,1.0} × α∈{0.4,0.7,1.0} (12 cells) × 3 artifacts × 3 seeds.
 The SAE trains once per seed on clean activations (ρ/α-independent) and is reused across the grid. Per
@@ -430,6 +432,38 @@ perfectly, while every linear feature-space method fails.
 
 Figure `…effect_dimensionality/figures/mechanism_detection_vs_causal_direction.png`. Run dir (2026-07-10,
 kept): `experiments/runs/20260709T231727Z_effect_dimensionality`. Code: `scripts/42_effect_dimensionality.py`.
+
+---
+
+## 8. Robustness across layers (added 2026-07-10)
+
+Reviewer-proofing against "you cherry-picked block 12." We re-ran the core dissociation **and** the §7
+mechanism at blocks {6, 8, 10, 12}, training a fresh SAE (frozen width 4096) at each, 2 seeds
+(supplementary; the main grid is 3-seed at block 12).
+
+**Detection ≠ control holds at every layer.** Detection AUROC stays high (0.83–0.99) and SAE-ablate
+recovery stays ≈0 (max +0.06) at all four blocks; the input-removal oracle is 1.0 throughout. The
+dissociation is not specific to block 12.
+
+| block ℓ | detection AUROC | SAE recovery R | eff. rank of Δa | \|cos(causal, SAE feat)\| |
+|---|---|---|---|---|
+| 6 | 0.83–0.98 | −0.00 … +0.05 | ~10–17 | 0.20–0.46 |
+| 8 | 0.84–0.99 | +0.00 … +0.06 | ~11–17 | 0.18–0.40 |
+| 10 | 0.87–0.99 | +0.00 … +0.05 | ~14–16 | 0.23–0.49 |
+| 12 | 0.88–0.99 | −0.01 … +0.02 | **~1.2** | **0.05–0.11** |
+
+**The geometric cause shifts with depth** (an honest nuance): at mid blocks the artifact effect is
+*distributed* (effective rank ~10–17), so a single-feature ablation can't capture it even though the
+detection feature is moderately aligned (cos ~0.2–0.5); by block 12 the effect *concentrates* to
+rank-1 but the detection feature becomes near-orthogonal to it (cos ~0.05–0.11). Either way — too many
+dimensions, or the wrong single one — a low-rank linear intervention fails to control the artifact.
+
+*Caveat:* the SAE reconstructs mid blocks less faithfully (R² ~0.84 at ℓ6–10 vs 0.99 at ℓ12), which
+also limits mid-block feature quality; block 12 (the pre-registered layer) is where the SAE is
+healthiest and the dissociation is cleanest.
+
+Figure `…layer_robustness/figures/layer_robustness.png`. Run dir (2026-07-10):
+`experiments/runs/20260709T235403Z_layer_robustness` (2 seeds). Code: `scripts/43_layer_robustness.py`.
 
 ---
 
