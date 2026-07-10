@@ -300,16 +300,26 @@ circle is essentially absent (0.03%), so the hard disc was an unrealistically bl
 **Pre-registration and SAE.** Metrics, hypotheses, and selection rules were frozen before the final
 grid (PREREGISTRATION.md, git `0840de8`, 2026-07-03). SAE: TopK in the raw residual stream, k = 32,
 unit-norm decoder, AuxK dead-feature revival on. The **width rule** is fixed as: the widest dictionary
-with held-out dead-feature fraction ≤ 15% and R² ≥ 0.98. The exploratory grids (Section 5.1–5.3) ran at
-width 16384 (≈ 22% dead — fails the bar, so those are labelled robustness/exploratory); the
-**pre-registered confirmatory sweep (Section 5.4) runs at the rule-compliant width 4096** (6.9–8.9%
-dead, R² = 0.990). The dissociation is identical at both widths. Feature-set size m = 1 for the primary
-analysis. Headline numbers are mean ± std over seeds [0, 1, 2].
+with held-out dead-feature fraction ≤ 15% and R² ≥ 0.98. A direct width sweep at the grid config
+confirms this rule selects **width 4096 unambiguously** — dead-feature fraction is 8.7% at 4096, 18.1%
+at 8192, and 23.2% at 16384, so 4096 is the widest dictionary that clears the ≤ 15%-dead bar. The
+exploratory Section 5.2 baseline table therefore runs at width 16384 (fails the bar → labelled
+robustness/exploratory), while the **pre-registered confirmatory ρ×α grid (Section 5.4) runs at the
+rule-compliant width 4096** (6.9–8.9% dead across seeds, R² = 0.990). Both widths show the same
+dissociation. Feature-set size m = 1 for the primary analysis. Headline numbers are mean ± std over
+seeds [0, 1, 2].
 
 <!-- WRITER NOTE (ELI10): The width story is subtle but IMPORTANT for prereg-compliance. In plain terms:
      the pretty exploratory numbers used a very wide SAE that is a bit "unhealthy" (too many dead
      features), so the REGISTERED headline uses the narrower, healthy width-4096 SAE. Both give the same
-     answer. If a reviewer challenges "you tuned the SAE," this paragraph is the defense — keep it. -->
+     answer. If a reviewer challenges "you tuned the SAE," this paragraph is the defense. The dead-feature
+     sweep (4096=8.7%, 8192=18.1%, 16384=23.2%) traces to PROGRESS §6; it shows the "widest ≤15%-dead"
+     rule is data-determined, not hand-picked. Keep this. -->
+
+<!-- WRITER NOTE (ELI10): Cross-check consistency — §4 now says the width-4096 dead fraction is 6.9–8.9%
+     (the ρ×α confirmatory grid, PROGRESS §6) and the width sweep reports 8.7% at 4096 (PROGRESS §6);
+     these are the same width measured in two runs, both ≤15%, so they agree. If a reviewer asks, cite
+     the sweep number (8.7%) as the selection evidence and the 6.9–8.9% as the per-seed grid range. -->
 
 **Reproducibility.** Every run writes its resolved config, seed, and per-image outputs to a timestamped
 directory; aggregation reads from disk, never from memory. Run directories are cited per result below.
@@ -542,6 +552,49 @@ causal direction. Ablating the detection direction therefore removes the wrong v
      story; lead the Discussion with it. All numbers trace to PROGRESS §7 (run
      …20260709T231727Z_effect_dimensionality). Double-check the |cos| values and the 84–94% variance
      figures at write time. -->
+
+### 5.6 The dissociation is not a layer artifact
+
+A natural worry is that we cherry-picked block 12. To rule this out we re-ran both the core dissociation
+*and* the Section 5.5 mechanism analysis at MONET blocks {6, 8, 10, 12}, training a fresh width-4096 SAE
+at each block (2 seeds; the main grid is 3-seed at block 12).
+
+**[TABLE 6: layer robustness — detection ≠ control at every block. Source: PROGRESS §8, run
+`experiments/runs/20260709T235403Z_layer_robustness`.]**
+
+| block ℓ | detection AUROC | SAE recovery R | eff. rank of Δa | \|cos(causal, SAE feat)\| |
+|---|---|---|---|---|
+| 6 | 0.83–0.98 | −0.00 … +0.05 | ~10–17 | 0.20–0.46 |
+| 8 | 0.84–0.99 | +0.00 … +0.06 | ~11–17 | 0.18–0.40 |
+| 10 | 0.87–0.99 | +0.00 … +0.05 | ~14–16 | 0.23–0.49 |
+| 12 | 0.88–0.99 | −0.01 … +0.02 | **~1.2** | **0.05–0.11** |
+
+Detection ≠ control holds at every layer: detection AUROC stays high (0.83–0.99) and SAE-ablate recovery
+stays ≈ 0 (at most +0.06) at all four blocks, while the input-removal oracle is 1.0 throughout. The
+*geometric cause* shifts with depth — an honest nuance. At mid blocks the artifact effect is
+**distributed** (effective rank ~10–17), so a single-feature ablation cannot capture it even though the
+detection feature is moderately aligned with the causal direction (`|cos|` ~0.2–0.5); by block 12 the
+effect **concentrates** to rank-1 but the detection feature becomes near-orthogonal to it
+(`|cos|` ~0.05–0.11, as in Section 5.5). Either way — too many dimensions, or the wrong single one — a
+low-rank linear intervention fails to control the artifact. One caveat worth stating plainly: the SAE
+reconstructs mid blocks less faithfully (R² ~0.84 at ℓ6–10 vs 0.99 at ℓ12), which also limits mid-block
+feature quality, so block 12 — the pre-registered layer — is where the SAE is healthiest and the
+dissociation is cleanest.
+
+![Detection ≠ control across MONET blocks](figures/layer_robustness.png)
+
+*Figure 6. The dissociation survives depth. At MONET blocks 6, 8, 10, and 12 the SAE feature detects the
+artifact (AUROC 0.83–0.99) but ablating it recovers ≈ 0 of the effect, while input erasure recovers 1.0.
+The linear-control failure is layer-invariant even as its geometric cause shifts from a distributed
+mid-block effect to a rank-1 effect at block 12 that the detection feature misses.*
+
+<!-- WRITER NOTE (ELI10): This is the "we didn't cherry-pick block 12" insurance. Numbers trace to
+     PROGRESS §8 (run …20260709T235403Z_layer_robustness, 2 seeds — SUPPLEMENTARY, so label it as such;
+     the headline grid is 3-seed at block 12). The honest nuance: WHY linear control fails is not the
+     same at every depth (mid = distributed/high-rank; block 12 = rank-1 but wrong direction) — present
+     that as a strength (we characterized it), not a wobble. Do NOT bury the R²~0.84 mid-block caveat;
+     it's why block 12 stays the pre-registered headline. If space is tight this can move to a
+     supplement, but keep at least the one-line "holds at every block" claim in the main text. -->
 
 ---
 
